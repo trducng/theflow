@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+version = "0.1.0"
+name = "finestflow"
+authors = [{ name = "trducng", email = "trungduc1992@gmail.com" }]
+description = "Manage your prompts"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+classifiers = ["Programming Language :: Python :: 3"]
+dependencies = ["pydantic"]
