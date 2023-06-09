@@ -1,5 +1,7 @@
 import logging
 
+from .context import BaseContext
+
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +14,7 @@ class StepWrapper:
         self._ff_config = config
         self._ff_prefix = ""
         # TODO: the context should be passed to the function
-        self._ff_context = context
+        self._ff_context: BaseContext = context
 
     def __getattr__(self, name):
         if name.startswith("_ff"):
@@ -49,34 +51,34 @@ class StepWrapper:
                 _status = "start"
                 # if self._ff_config.get("mode") == 'trace':
                 #     return "haha"
-                if self._ff_context.get_context("good_to_run", default=True) is False:
+                if self._ff_context.get("good_to_run", default=True) is False:
                     import json
 
-                    with open(self._ff_context.get_context("cache"), "r") as f:
+                    with open(self._ff_context.get("cache"), "r") as f:
                         # TODO: should have a dedicated libary to handle reading from cache
                         _input = {"args": args, "kwargs": kwargs}
                         _temp = json.load(f)[_ff_name]
                         _status = "cached"
                         _output = _temp["output"]
-                    if self._ff_context.get_context("from", None) == _ff_name:
+                    if self._ff_context.get("from", None) == _ff_name:
                         _output = attr(*_input["args"], **_input["kwargs"])
                         _status = "rerun"
-                        self._ff_context.add_context("good_to_run", True)
+                        self._ff_context.set("good_to_run", True)
 
                     # TODO: should put "input" context earlier to save the input into cache in case of failure
-                    self._ff_context.add_context(
+                    self._ff_context.set(
                         _ff_name,
                         {"input": _input, "output": _output, "status": _status},
                     )
                     return _output
 
-                if self._ff_context.get_context("to", None) == _ff_name:
-                    self._ff_context.add_context("good_to_run", False)
+                if self._ff_context.get("to", None) == _ff_name:
+                    self._ff_context.set("good_to_run", False)
 
                 _input = {"args": args, "kwargs": kwargs}
                 _output = attr(*args, **kwargs)
                 _status = "run"
-                self._ff_context.add_context(
+                self._ff_context.set(
                     _ff_name, {"input": _input, "output": _output, "status": _status}
                 )
                 return _output
@@ -93,6 +95,12 @@ class StepWrapper:
             return super().__setattr__(name, value)
 
         return getattr(self._ff_obj, name).__setattr__(name, value)
+
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
 
     def __call__(self, *args, **kwargs):
         return self.__getattr__("__call__")(*args, **kwargs)

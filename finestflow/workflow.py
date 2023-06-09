@@ -124,15 +124,15 @@ class YourFlow:
         _ff_from_cache: str = kwargs.pop("_ff_from_cache", None)
         _ff_cache_dir: str = kwargs.pop("_ff_cache_dir", None)
         if _ff_from:
-            self._ff_run_context.add_context("from", _ff_from)
-            self._ff_run_context.add_context("good_to_run", False)
+            self._ff_run_context.set("from", _ff_from)
+            self._ff_run_context.set("good_to_run", False)
         if _ff_to:
-            self._ff_run_context.add_context("to", _ff_to)
+            self._ff_run_context.set("to", _ff_to)
         if _ff_from_cache:
-            self._ff_run_context.add_context("cache", _ff_from_cache)
+            self._ff_run_context.set("cache", _ff_from_cache)
         if _ff_cache_dir:
             cache_dir = Path(_ff_cache_dir) / self._run
-            self._ff_run_context.add_context("cache_dir", _ff_cache_dir)
+            self._ff_run_context.set("cache_dir", _ff_cache_dir)
         else:
             cache_dir = None
         # TODO: it should set more context about the name of the current edge here
@@ -145,12 +145,12 @@ class YourFlow:
             setattr(getattr(self, node), "_ff_prefix", _ff_name)
 
         output_ = self.run(*args, **kwargs)
-        self._ff_run_context.add_context(_ff_name, output_)
+        self._ff_run_context.set(_ff_name, output_)
         if cache_dir is not None:
             Path(cache_dir).mkdir(parents=True, exist_ok=True)
             with (Path(cache_dir) / "cache.json").open("w") as fo:
                 import json
-                json.dump(self._ff_run_context.to_dict(), fo)
+                json.dump(self._ff_run_context.get(name=None), fo)
         return output_
 
     def visualize(self):

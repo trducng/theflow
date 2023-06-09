@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 from .base import BaseContext
 
@@ -10,17 +10,41 @@ class SimpleMemoryContext(BaseContext):
     """
     def __init__(self):
         self._msg_store = {}
+        self._lock = None  # if not None, then _msg_store is a DictProxy
 
     def set(self, name: str, value: Any) -> None:
         """Set a value to the context"""
+        if self._lock is not None:
+            with self._lock:
+                self._msg_store[name] = value
+            return
+
         self._msg_store[name] = value
 
-    def get(self, name, default=None):
+    def get(self, name: Optional[str], default=None):
         """Get a value from the context"""
+        if name is None:
+            if self._lock is None:
+                return self._msg_store
+            return self._msg_store.copy()
+    
         return self._msg_store.get(name, default)
+
+    def clear(self, name):
+        """Clear a value from the context"""
+        if self._lock is not None:
+            with self._lock:
+                if name in self._msg_store:
+                    del self._msg_store[name]
+            return
+
+        if name in self._msg_store:
+            del self._msg_store[name]
 
     def make_process_safe(self) -> None:
         """Make the context process-safe"""
-        import multiprocessing as mp
+        import multiprocessing
 
-        self._msg_store = mp.Manager().dict(self._msg_store)
+        manager = multiprocessing.Manager()
+        self._msg_store = manager.dict(self._msg_store)
+        self._lock = manager.Lock()

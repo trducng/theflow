@@ -61,4 +61,24 @@ class TestSimpleMemoryContext(TestCase):
         self.assertEqual(context.get("c"), 3)
         self.assertEqual(context.get("d").x, 10)
 
-        print(context)
+    def test_get_all(self):
+        """Test it's possible to get all values from the context"""
+        import multiprocessing
+
+        def run(context):
+            context.set("a", 1)
+            context.set("b", 2)
+            context.set("c", 3)
+        
+        context = SimpleMemoryContext()
+        context.make_process_safe()
+        processes = []
+        for _ in range(10):
+            p = multiprocessing.Process(target=run, args=(context,))
+            processes.append(p)
+            p.start()
+
+        for p in processes:
+            p.join()
+
+        self.assertEqual(context.get(None), {"a": 1, "b": 2, "c": 3})
