@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-    <em></em>
+    <em>Pipeline development framework, easy to experiment and compare different pipelines, quick to deploy to workflow orchestration tools</em>
 </p>
 
 ---
@@ -27,6 +27,10 @@ production-grade workflow orchestrators.
 - Support single process or multi-processing pipeline running
 - Support chaining different pipeline
 - Visualize pipeline graph
+- Can quickly to support deploying to matured workflow orchestration tools
+- Allow multiprocessing
+- Allow debugging
+- Can synchronize changes in the workflow, allowing logs from different run to be compatible with each other
 
 ## Quickstart
 
@@ -75,6 +79,10 @@ class Run(Pipeline):
     # GOOD: allow cache and code preparation
     y = self.prompt(x)
     y = self.pred(y)
+    with finestflow.parallel(n_processes=10, progress_callback=xyz, break_condition=xyz, **other_options) as p:
+      # can provide Multiprocess Sub-Flow
+      result = p.processing_strategy(self.next_step, y)
+      
     return self.parse(y)
     
 Run(prompt={prompt: xyz}, pred=abc, parse=xmy)

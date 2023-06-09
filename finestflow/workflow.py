@@ -3,7 +3,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Optional, Union, Callable
 
-from .context import InMemoryDictionary, Context
+from .context import SimpleMemoryContext, BaseContext
 from .step import StepWrapper
 
 RESERVED_PIPELINE_KEYWORDS = ["Config"]
@@ -17,17 +17,25 @@ class YourFlow:
         kwargs: the kwargs to pass to the flow and stored as `self._ff_kwargs`
             attribute
         config: the flow config can be either dictionary or a path to json/yaml file
+        context: the context object for flow components to communicate with each other
     """
 
     _ff_init_called = False
     _ff_initializing = False
+
+    class _FF_Callbacks:
+        run_name: Callable = lambda obj: time.time()
+        log_dir: Callable = lambda obj: Path("logs") / obj._run
+
+    class _FF_Config:
+        default_config = {}
 
     def __init__(
         self,
         *,
         kwargs: Optional[dict] = None,
         config: Optional[Union[dict, str]] = None,
-        context: Optional[Context] = None,
+        context: Optional[BaseContext] = None,
     ):
         self._ff_init_called = True
         self._ff_kwargs = kwargs
@@ -39,13 +47,14 @@ class YourFlow:
             with open(config, "r") as f:
                 config = json.load(f)
         self._ff_config: dict = config
-        self._ff_run_context: Context = (
-            InMemoryDictionary() if context is None else context
+        self._ff_run_context: BaseContext = (
+            SimpleMemoryContext() if context is None else context
         )
         self._ff_nodes = []
         self._run = str(int(time.time()))
         self._ff_initialize()
         self._ff_prefix: Optional[str] = None
+        self._ff_callbacks: dict = []
 
     def initialize(self):
         raise NotImplementedError("Please declare your steps in `initialize`")

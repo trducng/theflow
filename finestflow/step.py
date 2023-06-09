@@ -96,3 +96,6 @@ class StepWrapper:
 
     def __call__(self, *args, **kwargs):
         return self.__getattr__("__call__")(*args, **kwargs)
+
+    def __add__(self, other):
+        return self.__getattr__("__add__")(other)
