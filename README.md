@@ -1,5 +1,4 @@
-# finestflow
-
+<!-- # finestflow -->
 
 <p align="center">
   <img src="https://github-production-user-asset-6210df.s3.amazonaws.com/35283585/244143468-d3f886e7-5d4c-4d2d-899f-52e84fac7df5.png">
@@ -17,20 +16,14 @@ development process. It aims to make it easy to develop pipeline, and once the
 user reaches a good pipeline, it aims to make it easy to export to other
 production-grade workflow orchestrators.
 
-- Allow both imperative and descriptive pipeline configuration
 - Manage pipeline experiment: store pipeline output results, compare between
-  different run results, reproduce experiments
-- Cache progress, allow run from cache
-- Can store artifacts locally for gitlfs/dvc/god/... tracking
-- Initialize each task (avoid loading model)
-- Support pipeline branching and merging
-- Support single process or multi-processing pipeline running
-- Support chaining different pipeline
-- Visualize pipeline graph
-- Can quickly to support deploying to matured workflow orchestration tools
-- Allow multiprocessing
-- Allow debugging
-- Can synchronize changes in the workflow, allowing logs from different run to be compatible with each other
+  different run results, reproduce experiments, compare pipeline.
+- Support imperative pipeline initialization: suitable for complex customization.
+- Support descriptive pipeline initialization - suitable for plug-and-play configuration
+- Fast pipeline execution, auto-cache & run from cache when necessary
+- Can store artifacts locally for git-lfs/dvc/god/... tracking
+- Visualize pipeline
+- Auto export artifacts to deploy pipeline to matured workflow orchestration tools (e.g. Argo workflow, Airflow, Kubeflow...)
 
 ## Quickstart
 
@@ -110,7 +103,15 @@ Run(prompt={prompt: xyz}, pred=abc, parse=xmy)
 
 ## TODO
 
+- Compare pipeline in a result folder
+- Cache progress, allow running from cache
 - Allow step to plug-n-play the config
+- Initialize each task (avoid loading model)
+- Support pipeline branching and merging
+- Support single process or multi-processing pipeline running
+- Support chaining different pipeline
+- Allow debugging
+- Can synchronize changes in the workflow, allowing logs from different run to be compatible with each other
 - Compare different runs
   - Same cache directory
   - Compare evaluation result based on kwargs
