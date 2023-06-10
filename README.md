@@ -34,6 +34,7 @@ Pipeline can be defined as code. You initialize all the ops in `self.initialize`
 ```python
 from finestflow import Pipeline
 
+# Define some operations used inside the pipeline
 # Operation 1: normal class-based Python object
 class IncrementBy:
 
@@ -53,12 +54,12 @@ def decrement_by_5(x):
 class MathFlow(Pipeline):
 
   def initialize(self):
-    # register operations in the flow
+    # Initialize operations in the flow
     self.increment = IncrementBy(x=self._ff_kwargs["increment"])
     self.decrement = decrement_by_5
 
   def run(self, x):
-    # routing of the flow
+    # Route the operations in the flow
     y = self.increment(x, _ff_name="increment1")   # associate _ff_name
     y = self.decrement(y, _ff_name="decrement")
     y = self.increment(x, _ff_name="increment2")
@@ -82,7 +83,7 @@ flow.last_run.visualize(path="vis.png")   # export the graph in `vis.png` file
 flow.last_run.steps()                     # list input/output each step
 ```
 
-The information above is also automatically stored in the project root `.finestflow` directory. You can use the finestflow CLI command to list all runs, get each run detail, and compare runs. A UI for run management is trivially implemented with the `finestflow[ui]` that allow managing the experiments through a web-based UI.
+The information above is also automatically stored in the project root's `.finestflow` directory. You can use the `finestflow` CLI command to list all runs, get each run detail, and compare runs. A UI for run management is trivially implemented with the `finestflow[ui]` that allow managing the experiments through a web-based UI.
 
 ```shell
 # list all runs in the directory
@@ -112,22 +113,12 @@ You can modify the step inside the yaml file, and `finestflow` can run the pipel
 
 ## Roadmap
 
-- Questions:
-  - How to allow plug-and-play object? (e.g. different Prompt object?), well
-    just supplies the class object
-  - How to make it configurable -> Allow to export pipeline to config (magic
-    with the task and flow's `__init__` -> Allow to load from config -> For
-    pipeline that doesn't have class, then the pipeline's `__call__` can be
-    inferred or explicitly draw in the kind of airflow notation
-  - How to store the cache?
-    - cache by runs, organized by root task, allow reproducible
-    - specify the files
-    - the keys are like `lru_cache`, takes in the original input key, specify
-      the cache, but the cache should be file-backed, for run-after-run execution.
-    - cli command to manipulate cache
-  - How to run multiple files in parallel? -> treat the parallel as a kind
-    of pipeline
-  - How to limit from - to steps -> monkey patching the task `__call__` func
+- Cache
+  - cache by runs, organized by root task, allow reproducible
+  - specify the files
+  - the keys are like `lru_cache`, takes in the original input key, specify
+    the cache, but the cache should be file-backed, for run-after-run execution.
+  - cli command to manipulate cache
 - Compare pipeline in a result folder
 - Cache progress, allow running from cache
 - Allow step to plug-n-play the config
@@ -140,23 +131,17 @@ You can modify the step inside the yaml file, and `finestflow` can run the pipel
 - Compare different runs
   - Same cache directory
   - Compare evaluation result based on kwargs
-- List runs
-- Delete unnecessary runs
+- CLI List runs
+- CLI Delete unnecessary runs
 - Dynamically create reproducible config
-- Prepare README and create open-source
 - Recursive construction of flow:
   - Config are parsed recursively.
 - How to secure environment variables in each step, in such a way that it's not possible for one step to access to environment of other step
   - This is a deployment problem, not development problem.
     - It should be handled in the Yaml config. Not in the code.
     - Integrate the deployment with argo-workflow
-- [-] Allow step to have the name of the edge
-  - [ ] Edge name check
-- [-] Allow step to have read/write access to the same memory space so that it can help with tracing
-  - [ ] Design better context interface
-  - [ ] Should have a context manager to separate parallel run
-- [-] Allow step to store output in a cache
-  - [ ] Optimize the amount of information stored
-- [-] Allow step to start and end at will
-- [-] Persist the log to disk
-- [-] Perform repeated experiments -> Use prefix for pipeline
+- Add coverage, pre-commit, CI...
+
+## License
+
+MIT License.

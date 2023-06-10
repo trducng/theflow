@@ -42,7 +42,7 @@ class SimpleMemoryContext(BaseContext):
         if name in self._msg_store:
             del self._msg_store[name]
 
-    def multiprocess_construct(self) -> None:
+    def activate_multiprocessing(self) -> None:
         """Make the context process-safe"""
         import multiprocessing
 
@@ -50,7 +50,7 @@ class SimpleMemoryContext(BaseContext):
         self._msg_store = self._manager.dict(self._msg_store)
         self._lock = self._manager.Lock()
 
-    def multiprocess_destroy(self) -> None:
+    def deactivate_multiprocessing(self) -> None:
         """Destroy the context in a multi-processing environment"""
         if self._manager is not None:
             self._msg_store = self._msg_store.copy()

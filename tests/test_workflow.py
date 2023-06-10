@@ -1,7 +1,7 @@
 import multiprocessing
 from unittest import TestCase
 
-from finestflow.workflow import YourFlow
+from finestflow.pipeline import Pipeline
 
 
 class IncrementBy:
@@ -30,7 +30,7 @@ def allow_multiprocessing(kwargs):
     func = kwargs.pop("func")
     return func.run(**kwargs)
 
-class MultiprocessingWorkFlow(YourFlow):
+class MultiprocessingWorkFlow(Pipeline):
     def initialize(self):
         self.increment_by = IncrementBy(1)
         self.decrement_by = DecrementBy(1)
@@ -57,8 +57,9 @@ class TestWorkflow(TestCase):
 
     def test_multiprocessing_context_contains_child_processes(self):
         flow = MultiprocessingWorkFlow()
-        flow._ff_run_context.make_process_safe()
+        flow._ff_run_context.activate_multiprocessing()
         output = flow.run(1, times=10)
+        flow._ff_run_context.deactivate_multiprocessing()
         self.assertEqual(output, 20)
         self.assertIn(".increment_1", flow._ff_run_context.get(name=None))
 

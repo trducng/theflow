@@ -1,17 +1,16 @@
 import time
-import uuid
 from pathlib import Path
 from typing import Any, Optional, Union, Callable
 
 from .context import SimpleMemoryContext, BaseContext
 from .step import StepWrapper
 
-RESERVED_PIPELINE_KEYWORDS = ["Config"]
+RESERVED_PIPELINE_KEYWORDS = ["Config", "initialize", "run", "last_run"]
 RUN_EXTRA_PARAMS = ["_ff_from", "_ff_to"]
 
 
-class YourFlow:
-    """Subclass `YourFlow` to define and run your own flow
+class Pipeline:
+    """Subclass `Pipeline` to define and run your own flow
 
     Args:
         kwargs: the kwargs to pass to the flow and stored as `self._ff_kwargs`
@@ -23,12 +22,13 @@ class YourFlow:
     _ff_init_called = False
     _ff_initializing = False
 
-    class _FF_Callbacks:
+    class Callbacks:
         run_name: Callable = lambda obj: time.time()
         log_dir: Callable = lambda obj: Path("logs") / obj._run
 
-    class _FF_Config:
+    class Config:
         default_config = {}
+        # store_result = "./.finestflow"      # don't store result if None. Default {{ finestflow.utils.get_default_store_result }}
 
     def __init__(
         self,
@@ -55,6 +55,7 @@ class YourFlow:
         self._ff_initialize()
         self._ff_prefix: Optional[str] = None
         self._ff_callbacks: dict = []
+        self._last_run: Optional[str] = None
 
     def initialize(self):
         raise NotImplementedError("Please declare your steps in `initialize`")
@@ -89,7 +90,7 @@ class YourFlow:
                 )
 
             self._ff_nodes.append(name)
-            if isinstance(value, YourFlow):
+            if isinstance(value, Pipeline):
                 # TODO: should have a clone functionality
                 value = value.__class__(
                     kwargs=value._ff_kwargs,
@@ -122,7 +123,7 @@ class YourFlow:
         _ff_from: str = kwargs.pop("_ff_from", None)
         _ff_to: str = kwargs.pop("_ff_to", None)
         _ff_from_cache: str = kwargs.pop("_ff_from_cache", None)
-        _ff_cache_dir: str = kwargs.pop("_ff_cache_dir", None)
+        _ff_cache_dir: str = kwargs.pop("_ff_cache_dir", None)    # TODO-A1: use store result config instead
         if _ff_from:
             self._ff_run_context.set("from", _ff_from)
             self._ff_run_context.set("good_to_run", False)
