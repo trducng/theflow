@@ -11,6 +11,7 @@ class SimpleMemoryContext(BaseContext):
     def __init__(self):
         self._msg_store = {}
         self._lock = None  # if not None, then _msg_store is a DictProxy
+        self._manager = None    # if not None, then _msg_store is a DictProxy
 
     def set(self, name: str, value: Any) -> None:
         """Set a value to the context"""
@@ -41,10 +42,18 @@ class SimpleMemoryContext(BaseContext):
         if name in self._msg_store:
             del self._msg_store[name]
 
-    def make_process_safe(self) -> None:
+    def multiprocess_construct(self) -> None:
         """Make the context process-safe"""
         import multiprocessing
 
-        manager = multiprocessing.Manager()
-        self._msg_store = manager.dict(self._msg_store)
-        self._lock = manager.Lock()
+        self._manager = multiprocessing.Manager()
+        self._msg_store = self._manager.dict(self._msg_store)
+        self._lock = self._manager.Lock()
+
+    def multiprocess_destroy(self) -> None:
+        """Destroy the context in a multi-processing environment"""
+        if self._manager is not None:
+            self._msg_store = self._msg_store.copy()
+            self._manager.shutdown()
+            self._manager = None
+            self._lock = None

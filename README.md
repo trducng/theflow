@@ -10,79 +10,109 @@
 
 ---
 
-Most of the current workflow orchestrators focus on running the
-already-developed pipelines in production. This library focuses on the pipeline
-development process. It aims to make it easy to develop pipeline, and once the
-user reaches a good pipeline, it aims to make it easy to export to other
-production-grade workflow orchestrators.
+Most of the current workflow orchestrators focus on executing the already-developed pipelines in production. This library focuses on the **pipeline development process**. It aims to make it easy to develop pipeline, and once the user reaches a good pipeline, it aims to make it easy to export to other production-grade workflow orchestrators. Notable features:
 
-- Manage pipeline experiment: store pipeline output results, compare between
-  different run results, reproduce experiments, compare pipeline.
-- Support imperative pipeline initialization: suitable for complex customization.
-- Support descriptive pipeline initialization - suitable for plug-and-play configuration
-- Fast pipeline execution, auto-cache & run from cache when necessary
-- Can store artifacts locally for git-lfs/dvc/god/... tracking
-- Visualize pipeline
-- Auto export artifacts to deploy pipeline to matured workflow orchestration tools (e.g. Argo workflow, Airflow, Kubeflow...)
+- Manage pipeline experiment: store pipeline run outputs, compare pipelines & visualize.
+- Support pipeline as code: allow complex customization.
+- Support pipeline as configuration - suitable for plug-and-play when pipeline is more stable.
+- Fast pipeline execution, auto-cache & run from cache when necessary.
+- Allow version control of artifacts with git-lfs/dvc/god...
+- Export pipeline to compatible workflow orchestration tools (e.g. Argo workflow, Airflow, Kubeflow...).
 
-## Quickstart
-
-Install:
+## Install
 
 ```shell
 pip install finestflow
 ```
 
-Imperative pipeline:
+## Quick start
 
+(A code walk-through of this session is stored in `examples/10-minutes-quick-start.ipynb`. You can run it with Google Colab (TODO - attach the link).)
+
+Pipeline can be defined as code. You initialize all the ops in `self.initialize` and route them in `self.run`. In `self.run`, you associate each step with a name `_ff_name`, which finestflow use to identify the edge in the flow graph.
 
 ```python
-from finestflow import Task, Pipeline
+from finestflow import Pipeline
 
+# Operation 1: normal class-based Python object
+class IncrementBy:
 
-class Prompt(Task):
+  def __init__(self, x):
+    self.x = x
 
-  class Meta:
-    swapable = True
+  def __call__(self, y):
+    import time.time
+    time.sleep(10)
+    return self.x + y
 
-  prompt: xyz
+# Operation 2: normal Python function
+def decrement_by_5(x):
+  return x - 5
 
-  def __init__(self)
-    super().__init__(*args, **kwargs)
-    self.prompt.initialize(xyz)
+# Declare flow
+class MathFlow(Pipeline):
 
-  def run(self, *args, **kwargs):
-    return self.prompt(**kwargs)
+  def initialize(self):
+    # register operations in the flow
+    self.increment = IncrementBy(x=self._ff_kwargs["increment"])
+    self.decrement = decrement_by_5
 
-  def on_success(self)
-    pass
+  def run(self, x):
+    # routing of the flow
+    y = self.increment(x, _ff_name="increment1")   # associate _ff_name
+    y = self.decrement(y, _ff_name="decrement")
+    y = self.increment(x, _ff_name="increment2")
+    return y
 
-
-class Run(Pipeline):
-  prompt: Prompt
-  pred: Pred
-  parse: Parse
-
-  class Meta:
-    cache: xyz/
-    name: "some pretty name"
-    return_all: True
-
-  def __call__(self, x):
-    # GOOD: allow cache and code preparation
-    y = self.prompt(x)
-    y = self.pred(y)
-    with finestflow.parallel(n_processes=10, progress_callback=xyz, break_condition=xyz, **other_options) as p:
-      # can provide Multiprocess Sub-Flow
-      result = p.processing_strategy(self.next_step, y)
-      
-    return self.parse(y)
-    
-Run(prompt={prompt: xyz}, pred=abc, parse=xmy)
+flow = MathFlow(kwargs={"increment": 10})
 ```
 
+You run the pipeline by directly calling it. The output is the same object returned by `self.run`.
+
+```python
+output = flow.run(x=5)
+print(f"{output=}, {type(output)=}")      # output=5, type(output)=int
+```
+
+You can investigate pipeline's last run through the `last_run` property.
+
+```python
+flow.last_run.id()                        # id of the last run
+flow.last_run.visualize(path="vis.png")   # export the graph in `vis.png` file
+flow.last_run.steps()                     # list input/output each step
+```
+
+The information above is also automatically stored in the project root `.finestflow` directory. You can use the finestflow CLI command to list all runs, get each run detail, and compare runs. A UI for run management is trivially implemented with the `finestflow[ui]` that allow managing the experiments through a web-based UI.
+
+```shell
+# list all runs in the directory
+$ finestflow list
+
+# view detail of a run
+$ finestflow run <run-id>
+
+# compare 2 runs
+$ finestflow diff <run-id-1> <run-id-2>
+
+# show the UI, require `pip install finestflow[ui]`, ctrl+c to stop the UI
+$ finestflow ui
+```
+
+(TODO - attach the UI screenshot).
+
+`finestflow` allows exporting the pipeline into a yaml file, which then can be used to share with each other
+
+```python
+flow.export_pipeline("pipeline.yaml")     # (TODO - attach screesamplesnshots)
+```
+
+You can modify the step inside the yaml file, and `finestflow` can run the pipeline according to the new graph.
+
+(TODO - attach URL to detailed documentation for each of the step above)
+
+## Roadmap
+
 - Questions:
-  - How to allow init code? -> like the above
   - How to allow plug-and-play object? (e.g. different Prompt object?), well
     just supplies the class object
   - How to make it configurable -> Allow to export pipeline to config (magic
@@ -93,16 +123,11 @@ Run(prompt={prompt: xyz}, pred=abc, parse=xmy)
     - cache by runs, organized by root task, allow reproducible
     - specify the files
     - the keys are like `lru_cache`, takes in the original input key, specify
-      the cache
+      the cache, but the cache should be file-backed, for run-after-run execution.
     - cli command to manipulate cache
   - How to run multiple files in parallel? -> treat the parallel as a kind
     of pipeline
   - How to limit from - to steps -> monkey patching the task `__call__` func
-
-## Tutorial
-
-## TODO
-
 - Compare pipeline in a result folder
 - Cache progress, allow running from cache
 - Allow step to plug-n-play the config
