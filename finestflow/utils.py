@@ -1,3 +1,4 @@
+import importlib
 from pathlib import Path
 from typing import Optional
 
@@ -36,9 +37,7 @@ def get_finestflow_path(loc: Optional[str]) -> Optional[Path]:
     Returns:
         the finestflow directory, or None if not found
     """
-    if loc is None:
-        loc = Path.cwd()
-    loc = Path(loc)
+    loc = Path.cwd() if loc is None else Path(loc)
     while loc != loc.parent:
         if (loc / FINESTFLOW_DIR).exists():
             return loc / FINESTFLOW_DIR
@@ -78,3 +77,17 @@ def get_or_create_finestflow_path(loc: Optional[str]) -> Path:
     finestflow_path.mkdir(exist_ok=True, parents=True)
     return finestflow_path
 
+
+def import_dotted_string(dotted_string):
+    """Import a dotted string
+
+    Args:
+        dotted_string: the dotted string to import
+
+    Returns:
+        the imported object
+    """
+    # TODO: cached import
+    module_name, obj_name = dotted_string.rsplit(".", 1)
+    module = importlib.import_module(module_name)
+    return getattr(module, obj_name)

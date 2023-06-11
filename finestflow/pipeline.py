@@ -5,7 +5,7 @@ from typing import Any, Optional, Union, Callable
 from .context import SimpleMemoryContext, BaseContext
 from .step import StepWrapper
 
-RESERVED_PIPELINE_KEYWORDS = ["Config", "initialize", "run", "last_run"]
+RESERVED_PIPELINE_KEYWORDS = ["Config", "config", "initialize", "run", "last_run"]
 RUN_EXTRA_PARAMS = ["_ff_from", "_ff_to"]
 
 
@@ -25,10 +25,6 @@ class Pipeline:
     class Callbacks:
         run_name: Callable = lambda obj: time.time()
         log_dir: Callable = lambda obj: Path("logs") / obj._run
-
-    class Config:
-        default_config = {}
-        # store_result = "./.finestflow"      # don't store result if None. Default {{ finestflow.utils.get_default_store_result }}
 
     def __init__(
         self,
