@@ -1,4 +1,6 @@
-from typing import Any, Optional, Type
+from typing import Any, Optional, Type, Union
+
+import yaml 
 
 from finestflow import Pipeline
 from .utils import import_dotted_string
@@ -9,6 +11,27 @@ DEFAULT_CONFIG = {
     "store_result": "{{ finestflow.callbacks.store_result__project_root }}",
     "run_id": "{{ finestflow.callbacks.run_id__timestamp }}",
 }
+
+
+class ConfigGet:
+    """A wrapper class for config retrieval"""
+
+    def __init__(self, config: "Config", pipeline: Pipeline):
+        self._config = config
+        self._pipeline = pipeline
+
+    def __getattr__(self, name: str) -> Any:
+        attr = getattr(self._config, name)
+        if callable(attr):
+            return attr(self._pipeline)
+        return attr
+
+
+class ConfigProperty:
+    """Serve as property to access the config from the pipeline instance"""
+
+    def __get__(self, obj: Pipeline, obj_type: Type[Pipeline]) -> Any:
+        return ConfigGet(obj._ff_config, obj)
 
 
 class Config:
@@ -27,14 +50,17 @@ class Config:
     """
 
     def __init__(
-        self, config: Optional[dict] = None, cls: Optional[Type[Pipeline]] = None
+        self, config: Optional[Union[dict, str]] = None, cls: Optional[Type[Pipeline]] = None
     ):
         self._available_configs = set(DEFAULT_CONFIG.keys())
 
         self.update(DEFAULT_CONFIG)
-        if cls:
+        if cls is not None:
             self.update(cls)
         if config:
+            if isinstance(config, str):
+                with open(config, "r") as f:
+                    config = yaml.safe_load(f)
             self.update(config)
 
     def parse_callbacks(self) -> None:
@@ -75,3 +101,15 @@ class Config:
             self.update_from_pipeline(val)
         else:
             raise ValueError(f"Unknown config type: {type(val)}")
+
+    def export(self) -> dict:
+        """Export the config dict"""
+        output = {}
+        for key in self._available_configs:
+            if callable(getattr(self, key)):
+                obj = getattr(self, key)
+                output[key] = f"{{{{ {obj.__module__}.{obj.__name__} }}}}"
+            else:
+                output[key] = getattr(self, key)
+
+        return output

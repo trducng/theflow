@@ -1,7 +1,9 @@
+import json
 import time
 from pathlib import Path
 from typing import Any, Optional, Union, Callable
 
+from .config import Config, ConfigProperty
 from .context import SimpleMemoryContext, BaseContext
 from .step import StepWrapper
 
@@ -21,10 +23,7 @@ class Pipeline:
 
     _ff_init_called = False
     _ff_initializing = False
-
-    class Callbacks:
-        run_name: Callable = lambda obj: time.time()
-        log_dir: Callable = lambda obj: Path("logs") / obj._run
+    config = ConfigProperty()
 
     def __init__(
         self,
@@ -35,14 +34,7 @@ class Pipeline:
     ):
         self._ff_init_called = True
         self._ff_kwargs = kwargs
-        if config is None:
-            config = {}
-        if isinstance(config, str):
-            import json
-
-            with open(config, "r") as f:
-                config = json.load(f)
-        self._ff_config: dict = config
+        self._ff_config: Config = Config(config=config, cls=self.__class__)
         self._ff_run_context: BaseContext = (
             SimpleMemoryContext() if context is None else context
         )
@@ -119,7 +111,6 @@ class Pipeline:
         _ff_from: str = kwargs.pop("_ff_from", None)
         _ff_to: str = kwargs.pop("_ff_to", None)
         _ff_from_cache: str = kwargs.pop("_ff_from_cache", None)
-        _ff_cache_dir: str = kwargs.pop("_ff_cache_dir", None)    # TODO-A1: use store result config instead
         if _ff_from:
             self._ff_run_context.set("from", _ff_from)
             self._ff_run_context.set("good_to_run", False)
@@ -127,11 +118,12 @@ class Pipeline:
             self._ff_run_context.set("to", _ff_to)
         if _ff_from_cache:
             self._ff_run_context.set("cache", _ff_from_cache)
-        if _ff_cache_dir:
-            cache_dir = Path(_ff_cache_dir) / self._run
-            self._ff_run_context.set("cache_dir", _ff_cache_dir)
-        else:
-            cache_dir = None
+
+        # prepare the run path
+        store_result: Optional[Path] = self.config.store_result
+        if store_result:
+            store_result = store_result / self._run
+            
         # TODO: it should set more context about the name of the current edge here
         _ff_name = kwargs.pop("_ff_name", "")
         if self._ff_prefix is not None:
@@ -143,11 +135,11 @@ class Pipeline:
 
         output_ = self.run(*args, **kwargs)
         self._ff_run_context.set(_ff_name, output_)
-        if cache_dir is not None:
-            Path(cache_dir).mkdir(parents=True, exist_ok=True)
-            with (Path(cache_dir) / "cache.json").open("w") as fo:
-                import json
+        if store_result is not None:
+            store_result.mkdir(parents=True, exist_ok=True)
+            with (store_result / "run_progress.json").open("w") as fo:
                 json.dump(self._ff_run_context.get(name=None), fo)
+
         return output_
 
     def visualize(self):
