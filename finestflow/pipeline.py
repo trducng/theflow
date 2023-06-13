@@ -1,4 +1,4 @@
-import json
+import pickle
 import time
 from pathlib import Path
 from typing import Any, Optional, Union, Callable
@@ -39,11 +39,11 @@ class Pipeline:
             SimpleMemoryContext() if context is None else context
         )
         self._ff_nodes = []
-        self._run = str(int(time.time()))
+        self._run = str(int(time.time()))    # TODO: nested pipeline shouldn't be able to save progress
         self._ff_initialize()
         self._ff_prefix: Optional[str] = None
-        self._ff_callbacks: dict = []
         self._last_run: Optional[str] = None
+        self._is_pipeline_nested: bool = False
 
     def initialize(self):
         raise NotImplementedError("Please declare your steps in `initialize`")
@@ -85,6 +85,7 @@ class Pipeline:
                     config=value._ff_config,
                     context=self._ff_run_context
                 )
+                value.is_pipeline_nested(True)
             elif isinstance(value, StepWrapper):
                 value = StepWrapper(
                     value._obj,
@@ -119,11 +120,6 @@ class Pipeline:
             self._ff_run_context.set("to", _ff_to)
         if _ff_from_cache:
             self._ff_run_context.set("cache", _ff_from_cache)
-
-        # prepare the run path
-        store_result: Optional[Path] = self.config.store_result
-        if store_result:
-            store_result = store_result / self._run
             
         # TODO: it should set more context about the name of the current edge here
         _ff_name = kwargs.pop("_ff_name", "")
@@ -139,10 +135,19 @@ class Pipeline:
             "input": {"args": args, "kwargs": kwargs},
             "output": output_,
         })
-        if store_result is not None:
-            store_result.mkdir(parents=True, exist_ok=True)
-            with (store_result / "run_progress.json").open("w") as fo:
-                json.dump(self._ff_run_context.get(name=None), fo)
+
+        # prepare the run path
+        if not self.is_pipeline_nested():
+            store_result: Optional[Path] = self.config.store_result
+            if store_result is not None:
+                store_result = store_result / self._run
+                store_result.mkdir(parents=True, exist_ok=True)
+                with (store_result / "progress.pkl").open("wb") as fo:
+                    pickle.dump(self._ff_run_context.get(name=None), fo)
+                with (store_result / "input.pkl").open("w") as fo:
+                    pickle.dump({"args": args, "kwargs": kwargs}, fo)
+                with (store_result / "output.pkl").open("w") as fo:
+                    pickle.dump(output_, fo)
 
         return output_
 
@@ -159,3 +164,18 @@ class Pipeline:
             getattr(self, node).apply(fn)
         fn(self)
         return self
+
+    def is_pipeline_nested(self, is_nested: Optional[bool] = None) -> bool:
+        """Set whether the pipeline is nested or not
+        
+        Args:
+            is_nested: set whether the pipeline is nested or not. If None, just return
+                the current value
+            
+        Returns:
+            whether the pipeline is nested or not
+        """
+        if is_nested is not None:
+            self._is_pipeline_nested = is_nested
+
+        return self._is_pipeline_nested
