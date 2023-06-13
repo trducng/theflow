@@ -46,7 +46,7 @@ def get_finestflow_path(loc: Optional[str]) -> Optional[Path]:
     return None
 
 
-def get_or_create_finestflow_path(loc: Optional[str]) -> Path:
+def get_or_create_finestflow_path(loc: Optional[str]=None) -> Path:
     """Get the finestflow directory (.finestflow/) or create it if not exists
 
     It travels up the directory tree until it finds the finestflow directory. If not

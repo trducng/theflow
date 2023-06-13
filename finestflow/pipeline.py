@@ -102,6 +102,7 @@ class Pipeline:
 
     def _ff_initialize(self):
         self._ff_initializing = True
+        self._ff_config.parse_callbacks()
         self.initialize()
         self._ff_initializing = False
 
@@ -134,7 +135,10 @@ class Pipeline:
             setattr(getattr(self, node), "_ff_prefix", _ff_name)
 
         output_ = self.run(*args, **kwargs)
-        self._ff_run_context.set(_ff_name, output_)
+        self._ff_run_context.set(_ff_name, {
+            "input": {"args": args, "kwargs": kwargs},
+            "output": output_,
+        })
         if store_result is not None:
             store_result.mkdir(parents=True, exist_ok=True)
             with (store_result / "run_progress.json").open("w") as fo:

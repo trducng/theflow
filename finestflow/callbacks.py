@@ -11,4 +11,4 @@ def run_id__timestamp(obj: Pipeline) -> str:
 
 
 def store_result__project_root(obj: Pipeline) -> Path:
-    return get_or_create_finestflow_path(obj.project_root)
+    return get_or_create_finestflow_path()

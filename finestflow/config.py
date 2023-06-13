@@ -1,8 +1,9 @@
-from typing import Any, Optional, Type, Union
+from typing import Any, Optional, Type, Union, TYPE_CHECKING
 
 import yaml 
 
-from finestflow import Pipeline
+if TYPE_CHECKING:
+    from .pipeline import Pipeline
 from .utils import import_dotted_string
 
 
@@ -16,7 +17,7 @@ DEFAULT_CONFIG = {
 class ConfigGet:
     """A wrapper class for config retrieval"""
 
-    def __init__(self, config: "Config", pipeline: Pipeline):
+    def __init__(self, config: "Config", pipeline: "Pipeline"):
         self._config = config
         self._pipeline = pipeline
 
@@ -30,7 +31,7 @@ class ConfigGet:
 class ConfigProperty:
     """Serve as property to access the config from the pipeline instance"""
 
-    def __get__(self, obj: Pipeline, obj_type: Type[Pipeline]) -> Any:
+    def __get__(self, obj: "Pipeline", obj_type: Type["Pipeline"]) -> Any:
         return ConfigGet(obj._ff_config, obj)
 
 
@@ -50,7 +51,7 @@ class Config:
     """
 
     def __init__(
-        self, config: Optional[Union[dict, str]] = None, cls: Optional[Type[Pipeline]] = None
+        self, config: Optional[Union[dict, str]] = None, cls: Optional[Type["Pipeline"]] = None
     ):
         self._available_configs = set(DEFAULT_CONFIG.keys())
 
@@ -62,6 +63,7 @@ class Config:
                 with open(config, "r") as f:
                     config = yaml.safe_load(f)
             self.update(config)
+            self.parse_callbacks()
 
     def parse_callbacks(self) -> None:
         """Parse the callbacks"""
@@ -87,18 +89,25 @@ class Config:
 
             setattr(self, key, value)
 
-    def update_from_pipeline(self, cls: Type[Pipeline]) -> None:
+    def update_from_pipeline(self, cls: Type["Pipeline"]) -> None:
         """Parse the pipeline configs from pipeline.Config"""
         classes = cls.mro()
         for cls in reversed(classes):
             if hasattr(cls, "Config"):
                 self.update_from_dict(cls.Config.__dict__)
 
+    def update_from_config(self, config: "Config") -> None:
+        """Parse the pipeline configs from another Config instance"""
+        self.update_from_dict(config.export())
+
     def update(self, val: Any) -> None:
+        from .pipeline import Pipeline
         if isinstance(val, dict):
             self.update_from_dict(val)
         elif isinstance(val, type) and issubclass(val, Pipeline):
             self.update_from_pipeline(val)
+        elif isinstance(val, Config):
+            self.update_from_config(val)
         else:
             raise ValueError(f"Unknown config type: {type(val)}")
 

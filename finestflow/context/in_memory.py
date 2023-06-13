@@ -1,7 +1,10 @@
+import multiprocessing
 from typing import Any, Optional
 
 from .base import BaseContext
 
+
+_MANAGER = None
 
 class SimpleMemoryContext(BaseContext):
     """Simple context backed by in-memory dictionary
@@ -11,7 +14,6 @@ class SimpleMemoryContext(BaseContext):
     def __init__(self):
         self._msg_store = {}
         self._lock = None  # if not None, then _msg_store is a DictProxy
-        self._manager = None    # if not None, then _msg_store is a DictProxy
 
     def set(self, name: str, value: Any) -> None:
         """Set a value to the context"""
@@ -44,16 +46,18 @@ class SimpleMemoryContext(BaseContext):
 
     def activate_multiprocessing(self) -> None:
         """Make the context process-safe"""
-        import multiprocessing
+        global _MANAGER
 
-        self._manager = multiprocessing.Manager()
-        self._msg_store = self._manager.dict(self._msg_store)
-        self._lock = self._manager.Lock()
+        _MANAGER = multiprocessing.Manager()
+        self._msg_store = _MANAGER.dict(self._msg_store)
+        self._lock = _MANAGER.Lock()
 
     def deactivate_multiprocessing(self) -> None:
         """Destroy the context in a multi-processing environment"""
-        if self._manager is not None:
+        global _MANAGER
+
+        if _MANAGER is not None:
             self._msg_store = self._msg_store.copy()
-            self._manager.shutdown()
-            self._manager = None
+            _MANAGER.shutdown()
+            _MANAGER = None
             self._lock = None
