@@ -144,9 +144,9 @@ class Pipeline:
                 store_result.mkdir(parents=True, exist_ok=True)
                 with (store_result / "progress.pkl").open("wb") as fo:
                     pickle.dump(self._ff_run_context.get(name=None), fo)
-                with (store_result / "input.pkl").open("w") as fo:
+                with (store_result / "input.pkl").open("wb") as fo:
                     pickle.dump({"args": args, "kwargs": kwargs}, fo)
-                with (store_result / "output.pkl").open("w") as fo:
+                with (store_result / "output.pkl").open("wb") as fo:
                     pickle.dump(output_, fo)
 
         return output_
