@@ -1,4 +1,5 @@
 import importlib
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -91,3 +92,85 @@ def import_dotted_string(dotted_string):
     module_name, obj_name = dotted_string.rsplit(".", 1)
     module = importlib.import_module(module_name)
     return getattr(module, obj_name)
+
+
+def is_name_matched(name: str, pattern: str) -> bool:
+    """Check if a name matches a pattern
+
+    This method matches simple pattern with wildcard character "*". For example, the
+    pattern "a.*.b" matches "a.c.b" but not "a.b.c.b".
+    
+    Args:
+        name: the name to check
+        pattern: the pattern to match
+    
+    Returns:
+        True if the name matches the pattern, False otherwise
+    """
+    pattern_parts: list[str] = [re.escape(part) for part in pattern.split("*")]
+    regex_pattern: str = r'^' + r'[^.]+'.join(pattern_parts) + r'$'
+    return re.findall(regex_pattern, name) != []
+
+
+def is_parent_of_child(parent: str, child: str) -> bool:
+    """Check if a name is a direct parent of another name
+
+    Example:
+        >> is_parent_of_child(".main.pipeline_A1", ".main.pipeline_A1.*")
+        True
+        >> is_parent_of_child(".main.pipeline_A1", ".main.pipeline_A1.pipeline_B1")
+        True
+        >> is_parent_of_child(".main.pipeline_A1", ".main.pipeline_A2")
+        False
+
+    Args:
+        parent: the parent name
+        child: the child name. The child can be a wildcard pattern
+        
+    Returns:
+        True if the parent is a parent of the child, False otherwise
+    """
+    pattern = ".".join(child.split(".")[:-1])
+    return is_name_matched(parent, pattern)
+
+
+if __name__ == "__main__":
+    names = [
+        "",
+        ".main",
+        ".main.pipeline_A1"
+        ".main.pipeline_A1.pipeline_B1",
+        ".main.pipeline_A1.pipeline_B1.pipeline_C1",
+        ".main.pipeline_A1.pipeline_B1.pipeline_C1.step_a",
+        ".main.pipeline_A1.pipeline_B1.pipeline_C1.step_b",
+        ".main.pipeline_A1.pipeline_B1.pipeline_C1.step_c",
+        ".main.pipeline_A1.pipeline_B2",
+        ".main.pipeline_A1.pipeline_B2.pipeline_C2",
+        ".main.pipeline_A1.pipeline_B2.pipeline_C2.step_a",
+        ".main.pipeline_A1.pipeline_B2.pipeline_C2.step_b",
+        ".main.pipeline_A1.pipeline_B2.pipeline_C2.step_c",
+        ".main.pipeline_A2",
+        ".main.pipeline_A2.pipeline_B1",
+        ".main.pipeline_A2.pipeline_B1.pipeline_C1",
+        ".main.pipeline_A2.pipeline_B1.pipeline_C1.step_a",
+        ".main.pipeline_A2.pipeline_B1.pipeline_C1.step_b",
+        ".main.pipeline_A2.pipeline_B1.pipeline_C1.step_c",
+        ".main.pipeline_A2.pipeline_B2",
+        ".main.pipeline_A2.pipeline_B2.pipeline_C2",
+        ".main.pipeline_A2.pipeline_B2.pipeline_C2.step_a",
+        ".main.pipeline_A2.pipeline_B2.pipeline_C2.step_b",
+        ".main.pipeline_A2.pipeline_B2.pipeline_C2.step_c",
+        ".main.next_step",
+    ]
+
+    # pattern  = ".main.*.p*.*.step_a"
+    # pattern = ".main.*.*.pipeline_C1"
+    # pattern = ".main.pipeline_A2"
+    pattern = ".*.pipeline*"
+    # for name in names:
+    #     if is_name_matched(name, pattern):
+    #         print(name)
+
+    for name in names:
+        if is_parent_of_child(name, pattern):
+            print(name, "is parent of", pattern)

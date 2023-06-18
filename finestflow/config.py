@@ -48,10 +48,16 @@ class Config:
     function that takes the pipeline instance as the only argument. The callback
     function will be called when the config is accessed. The string to the callback
     function should be in the format of `{{ module.to.function }}`.
+
+    Args:
+        config: config dict or path to a yaml file  (default: None)
+        cls: the pipeline class (default: None)
     """
 
     def __init__(
-        self, config: Optional[Union[dict, str]] = None, cls: Optional[Type["Pipeline"]] = None
+        self,
+        config: Optional[Union[dict, str]] = None,
+        cls: Optional[Type["Pipeline"]] = None
     ):
         self._available_configs = set(DEFAULT_CONFIG.keys())
 
@@ -63,20 +69,6 @@ class Config:
                 with open(config, "r") as f:
                     config = yaml.safe_load(f)
             self.update(config)
-            self.parse_callbacks()
-
-    def parse_callbacks(self) -> None:
-        """Parse the callbacks"""
-        for key in self._available_configs:
-            value = getattr(self, key)
-            if (
-                isinstance(value, str)
-                and value.startswith("{{")
-                and value.endswith("}}")
-            ):
-                dotted_string = value[2:-2].strip()
-                func = import_dotted_string(dotted_string)
-                setattr(self, key, func)
 
     def update_from_dict(self, config: dict):
         """Parse the config dict"""
@@ -86,6 +78,15 @@ class Config:
 
             if key not in self._available_configs:
                 raise ValueError(f"Unknown config: {key}")
+
+            if (
+                isinstance(value, str)
+                and value.startswith("{{")
+                and value.endswith("}}")
+            ):
+                # parse to the callback function
+                dotted_string = value[2:-2].strip()
+                value = import_dotted_string(dotted_string)
 
             setattr(self, key, value)
 

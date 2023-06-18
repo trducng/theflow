@@ -1,7 +1,8 @@
 import logging
 
 from .context import BaseContext
-
+from .utils import is_name_matched
+from .runs.base import RunTracker
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +14,8 @@ class StepWrapper:
         self._ff_obj = obj
         self._ff_config = config
         self._ff_prefix = ""
-        # TODO: the context should be passed to the function
         self._ff_context: BaseContext = context
+        self._ff_last_run = RunTracker(self._ff_context)
 
     def __getattr__(self, name):
         if name.startswith("_ff"):
@@ -51,35 +52,34 @@ class StepWrapper:
                 _status = "start"
                 # if self._ff_config.get("mode") == 'trace':
                 #     return "haha"
-                if self._ff_context.get("good_to_run", default=True) is False:
-                    import json
+                if self._ff_context.get("good_to_run", default=True, context=self._ff_prefix) is False:
+                    from_run = RunTracker(self._ff_context, which_progress="__from_run__")
+                    _input = {"args": args, "kwargs": kwargs}
+                    _status = "cached"
+                    _output = from_run.output(name=_ff_name)
 
-                    with open(self._ff_context.get("cache"), "r") as f:
-                        # TODO: should have a dedicated libary to handle reading from cache
-                        _input = {"args": args, "kwargs": kwargs}
-                        _temp = json.load(f)[_ff_name]
-                        _status = "cached"
-                        _output = _temp["output"]
-                    if self._ff_context.get("from", None) == _ff_name:
+                    if is_name_matched(
+                        _ff_name,
+                        self._ff_context.get("from", context=None)
+                    ):
                         _output = attr(*_input["args"], **_input["kwargs"])
                         _status = "rerun"
-                        self._ff_context.set("good_to_run", True)
+                        self._ff_context.set("good_to_run", True, context=self._ff_prefix)
 
                     # TODO: should put "input" context earlier to save the input into cache in case of failure
-                    self._ff_context.set(
-                        _ff_name,
-                        {"input": _input, "output": _output, "status": _status},
+                    self._ff_last_run.log_progress(
+                        _ff_name, input=_input, output=_output, status=_status,
                     )
                     return _output
 
                 if self._ff_context.get("to", None) == _ff_name:
-                    self._ff_context.set("good_to_run", False)
+                    self._ff_context.set("good_to_run", False, context=self._ff_prefix)
 
                 _input = {"args": args, "kwargs": kwargs}
                 _output = attr(*args, **kwargs)
                 _status = "run"
-                self._ff_context.set(
-                    _ff_name, {"input": _input, "output": _output, "status": _status}
+                self._ff_last_run.log_progress(
+                    _ff_name, input=_input, output=_output, status=_status
                 )
                 return _output
 
