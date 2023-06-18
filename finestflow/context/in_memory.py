@@ -46,7 +46,9 @@ class SimpleMemoryContext(BaseContext):
         context = self._is_context_valid(context)
         if self._lock is not None:
             with self._lock:
-                self._msg_store[context][name] = value
+                current = self._msg_store[context]
+                current[name] = value
+                self._msg_store[context] = current
             return
 
         self._msg_store[context][name] = value

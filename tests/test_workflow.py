@@ -52,19 +52,19 @@ class MultiprocessingWorkFlow(Pipeline):
 class TestWorkflow(TestCase):
     def test_multiprocessing_output(self):
         flow = MultiprocessingWorkFlow()
-        output = flow.run(1, times=10)
+        output = flow(1, times=10)
         self.assertEqual(output, 20)
 
     def test_multiprocessing_context_contains_child_processes(self):
         flow = MultiprocessingWorkFlow()
-        flow._ff_run_context.activate_multiprocessing()
-        output = flow.run(1, times=10)
-        flow._ff_run_context.deactivate_multiprocessing()
+        flow._ff_context.activate_multiprocessing()
+        output = flow(1, times=10)
+        flow._ff_context.deactivate_multiprocessing()
         self.assertEqual(output, 20)
-        self.assertIn(".increment_1", flow._ff_run_context.get(name=None))
+        self.assertIn(".increment_1", flow.last_run.steps(name=None))
 
     def test_multiprocessing_context_doesnt_contain_child_processes_not_activated(self):
         flow = MultiprocessingWorkFlow()
-        output = flow.run(1, times=10)
+        output = flow(1, times=10)
         self.assertEqual(output, 20)
-        self.assertNotIn(".increment_1", flow._ff_run_context.get(name=None))
+        self.assertNotIn(".increment_1", flow.last_run.steps(name=None))
