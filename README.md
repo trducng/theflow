@@ -119,13 +119,11 @@ You can modify the step inside the yaml file, and `finestflow` can run the pipel
   - the keys are like `lru_cache`, takes in the original input key, specify
     the cache, but the cache should be file-backed, for run-after-run execution.
   - cli command to manipulate cache
+- kwrags management
 - Compare pipeline in a result folder
-- Cache progress, allow running from cache
-- Allow step to plug-n-play the config
-- Initialize each task (avoid loading model)
+- Dynamically create reproducible config
 - Support pipeline branching and merging
 - Support single process or multi-processing pipeline running
-- Support chaining different pipeline
 - Allow debugging
 - Can synchronize changes in the workflow, allowing logs from different run to be compatible with each other
 - Compare different runs
@@ -133,13 +131,6 @@ You can modify the step inside the yaml file, and `finestflow` can run the pipel
   - Compare evaluation result based on kwargs
 - CLI List runs
 - CLI Delete unnecessary runs
-- Dynamically create reproducible config
-- Recursive construction of flow:
-  - Config are parsed recursively.
-- How to secure environment variables in each step, in such a way that it's not possible for one step to access to environment of other step
-  - This is a deployment problem, not development problem.
-    - It should be handled in the Yaml config. Not in the code.
-    - Integrate the deployment with argo-workflow
 - Add coverage, pre-commit, CI...
 
 ## License

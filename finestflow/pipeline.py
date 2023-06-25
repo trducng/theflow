@@ -6,6 +6,7 @@ from .context import SimpleMemoryContext, BaseContext
 from .step import StepWrapper
 from .utils import is_parent_of_child
 from .runs.base import RunTracker
+from .visualization import trace_pipelne_run
 
 
 RESERVED_PIPELINE_KEYWORDS = ["Config", "config", "initialize", "run", "last_run"]
@@ -182,13 +183,13 @@ class Pipeline:
 
         return args, kwargs
 
-    def visualize(self):
+    @classmethod
+    def visualize(cls):
         # 1 re-initialize the flow with different mode
         # 2 check the argument defintion passed into `run`
         # 3 run the flow with the fake argument
         # 4 track the graph
-
-        raise NotImplementedError("Will implement visualize functionality later")
+        return trace_pipelne_run(cls)
 
     def apply(self, fn: Callable):
         for node in self._ff_nodes:
