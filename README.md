@@ -80,7 +80,8 @@ You can investigate pipeline's last run through the `last_run` property.
 ```python
 flow.last_run.id()                        # id of the last run
 flow.last_run.visualize(path="vis.png")   # export the graph in `vis.png` file
-flow.last_run.steps()                     # list input/output each step
+flow.last_run.steps()                     # list all steps that has been run
+flow.last_run.logs()                      # list all information of each step
 ```
 
 The information above is also automatically stored in the project root's `.finestflow` directory. You can use the `finestflow` CLI command to list all runs, get each run detail, and compare runs. A UI for run management is trivially implemented with the `finestflow[ui]` that allow managing the experiments through a web-based UI.
@@ -113,13 +114,13 @@ You can modify the step inside the yaml file, and `finestflow` can run the pipel
 
 ## Roadmap
 
+- kwargs management
 - Cache
   - cache by runs, organized by root task, allow reproducible
   - specify the files
   - the keys are like `lru_cache`, takes in the original input key, specify
     the cache, but the cache should be file-backed, for run-after-run execution.
   - cli command to manipulate cache
-- kwrags management
 - Compare pipeline in a result folder
 - Dynamically create reproducible config
 - Support pipeline branching and merging

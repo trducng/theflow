@@ -1,4 +1,3 @@
-from _ast import JoinedStr
 import ast
 import inspect
 from collections import defaultdict
@@ -27,11 +26,14 @@ def trace_pipelne_run(cls) -> list:
     return analyzer.logic_flow
 
 
-def get_ast_node_name(node):
+def get_ast_node_name(node) -> str:
     """Get human-readable name of an ast node
 
     Args:
         node: ast node
+
+    Returns:
+        str: human-readable name of the ast node
     """
     if isinstance(node, ast.Attribute):
         return "%s.%s" % (get_ast_node_name(node.value), node.attr)

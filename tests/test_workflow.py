@@ -61,10 +61,10 @@ class TestWorkflow(TestCase):
         output = flow(1, times=10)
         flow._ff_context.deactivate_multiprocessing()
         self.assertEqual(output, 20)
-        self.assertIn(".increment_1", flow.last_run.steps(name=None))
+        self.assertIn(".increment_1", flow.last_run.logs(name=None))
 
     def test_multiprocessing_context_doesnt_contain_child_processes_not_activated(self):
         flow = MultiprocessingWorkFlow()
         output = flow(1, times=10)
         self.assertEqual(output, 20)
-        self.assertNotIn(".increment_1", flow.last_run.steps(name=None))
+        self.assertNotIn(".increment_1", flow.last_run.logs(name=None))

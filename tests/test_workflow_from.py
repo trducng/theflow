@@ -45,6 +45,6 @@ class TestWorkflowFrom(TestCase):
             _ff_from=".step2",
             _ff_from_run=Path(pipeline.config.store_result) / pipeline.last_run.id(),
         )
-        self.assertEqual(pipeline.last_run.steps(".step1")["status"], "cached")
-        self.assertEqual(pipeline.last_run.steps(".step2")["status"], "rerun")
-        self.assertEqual(pipeline.last_run.steps(".step3")["status"], "run")
+        self.assertEqual(pipeline.last_run.logs(".step1")["status"], "cached")
+        self.assertEqual(pipeline.last_run.logs(".step2")["status"], "rerun")
+        self.assertEqual(pipeline.last_run.logs(".step3")["status"], "run")

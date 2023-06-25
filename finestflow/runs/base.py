@@ -91,8 +91,8 @@ class RunTracker:
         }
         self._context.set(name, value, context=self._progress)
 
-    def steps(self, name: Optional[str] = None) -> Any:
-        """Get the input and output of the step
+    def logs(self, name: Optional[str] = None) -> Any:
+        """Get the information of each step
 
         Args:
             name: name of the pipeline or step. If None, get progress of all steps
@@ -101,6 +101,14 @@ class RunTracker:
             input and output of the respective pipeline or step
         """
         return self._context.get(name, context=self._progress)
+
+    def steps(self):
+        """Get the steps of the run
+
+        Returns:
+            the steps of the run
+        """
+        return self._context.get(context=self._progress).keys()
 
     def input(self, name: str = "") -> Any:
         """Get the input of a pipeline
@@ -111,7 +119,7 @@ class RunTracker:
         Returns:
             input of the respective pipeline
         """
-        return self.steps(name=name)["input"]
+        return self.logs(name=name)["input"]
 
     def output(self, name: str = "") -> Any:
         """Get the output of a pipeline
@@ -122,7 +130,7 @@ class RunTracker:
         Returns:
             output of the respective pipeline
         """
-        return self.steps(name=name)["output"]
+        return self.logs(name=name)["output"]
 
     def persist(self, store_result: str, run_id: str):
         """Persist the run result to a store
@@ -134,7 +142,7 @@ class RunTracker:
         path = Path(store_result) / run_id
         path.mkdir(parents=True, exist_ok=True)
 
-        progress = self.steps(name=None)
+        progress = self.logs(name=None)
 
         with (path / "progress.pkl").open("wb") as fo:
             pickle.dump(progress, fo)
