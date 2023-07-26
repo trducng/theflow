@@ -1,13 +1,13 @@
 import importlib
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 
 FINESTFLOW_DIR = ".finestflow"
 
 
-def project_root(loc: Optional[str]) -> Optional[Path]:
+def project_root(loc: Optional[Union[str, Path]]) -> Optional[Path]:
     """Get the root directory of the project (contains .git/)
 
     Args:
@@ -28,7 +28,7 @@ def project_root(loc: Optional[str]) -> Optional[Path]:
     return None
 
 
-def get_finestflow_path(loc: Optional[str]) -> Optional[Path]:
+def get_finestflow_path(loc: Optional[Union[str, Path]]) -> Optional[Path]:
     """Get the finestflow directory (contains .finestflow/)
 
     Args:

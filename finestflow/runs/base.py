@@ -7,8 +7,10 @@ import yaml
 
 from ..context import BaseContext
 
+
 class RunStructure:
     """The structure of a run directory"""
+
     progress = "progress.pkl"
     input = "input.pkl"
     output = "output.pkl"
@@ -25,7 +27,8 @@ class RunManager:
 
     def list(self) -> list:
         """List all runs"""
-        import pandas as pd         # TODO: reimplement json_normalize
+        import pandas as pd  # TODO: reimplement json_normalize
+
         output = []
         for each_dir in self.dir.iterdir():
             if not each_dir.is_dir():
@@ -33,9 +36,11 @@ class RunManager:
 
             run_info = {"name": each_dir.name}
             with (each_dir / RunStructure.output).open("rb") as fi:
-                run_info.update(pd.json_normalize(
-                    {"output": pickle.load(fi)}
-                ).to_dict(orient="records")[0])
+                run_info.update(
+                    pd.json_normalize({"output": pickle.load(fi)}).to_dict(
+                        orient="records"
+                    )[0]
+                )
             with (each_dir / RunStructure.input).open("rb") as fi:
                 input_ = pickle.load(fi)
                 input_ = {"input": {"args": input_["args"], **input_["kwargs"]}}
@@ -50,7 +55,7 @@ class RunManager:
 
     def delete(self, name: str):
         """Delete a run base a name
-        
+
         Args:
             name: the name of the run
         """
@@ -68,7 +73,7 @@ class RunTracker:
         config: the config of the run
     """
 
-    def __init__(self, context: BaseContext, which_progress="__progress__"):
+    def __init__(self, context: BaseContext, which_progress: str = "__progress__"):
         self._context = context
 
         self._config = None
@@ -84,11 +89,7 @@ class RunTracker:
             output: output of the step
             status: status of the step, one of "run", "rerun", "cached"
         """
-        value = {
-            "input": input,
-            "output": output,
-            "status": status
-        }
+        value = {"input": input, "output": output, "status": status}
         self._context.set(name, value, context=self._progress)
 
     def logs(self, name: Optional[str] = None) -> Any:
@@ -163,7 +164,7 @@ class RunTracker:
 
     def load(self, run_path: str):
         """Load a run
-        
+
         Args:
             run_path: the path to the run
         """
@@ -172,7 +173,7 @@ class RunTracker:
             progress = pickle.load(fi)
 
         for key, value in progress.items():
-            self.log_progress(key, **value)       
+            self.log_progress(key, **value)
 
     @property
     def config(self) -> Optional[dict]:

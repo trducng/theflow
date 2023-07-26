@@ -1,7 +1,6 @@
-import time
 from pathlib import Path
 
-from finestflow import Pipeline
+from finestflow.pipeline import Pipeline
 from .utils import get_or_create_finestflow_path
 
 

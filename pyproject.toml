@@ -14,7 +14,7 @@ classifiers = ["Programming Language :: Python :: 3"]
 dependencies = ["pyyaml"]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "black", "flake8", "mypy", "isort", "pre-commit"]
+dev = ["pytest", "pytest-cov", "black", "flake8", "mypy", "isort", "pre-commit", "notebook", "ipython"]
 
 [tool.setuptools.packages.find]
 include = ["finestflow", "finestflow.*"]

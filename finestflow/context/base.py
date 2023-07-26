@@ -56,11 +56,11 @@ class BaseContext(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def create_local_context(self, name: str, exist_ok=False) -> str:
+    def create_local_context(self, context: str, exist_ok=False) -> str:
         """Create a local context
 
         Args:
-            name: name of the local context
+            context: name of the local context
             exist_ok: if True, do not raise error if the context already exists
 
         Returns:

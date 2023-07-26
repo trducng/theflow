@@ -1,9 +1,9 @@
-from typing import Any, Optional, Type, Union, TYPE_CHECKING
+from typing import Any, Callable, Optional, Type, Union, TYPE_CHECKING
 
 import yaml 
 
 if TYPE_CHECKING:
-    from .pipeline import Pipeline
+    from .base import Composable
 from .utils import import_dotted_string
 
 
@@ -17,7 +17,7 @@ DEFAULT_CONFIG = {
 class ConfigGet:
     """A wrapper class for config retrieval"""
 
-    def __init__(self, config: "Config", pipeline: "Pipeline"):
+    def __init__(self, config: "Config", pipeline: "Composable"):
         self._config = config
         self._pipeline = pipeline
 
@@ -31,8 +31,21 @@ class ConfigGet:
 class ConfigProperty:
     """Serve as property to access the config from the pipeline instance"""
 
-    def __get__(self, obj: "Pipeline", obj_type: Type["Pipeline"]) -> Any:
+    def __get__(self, obj: "Composable", obj_type: Type["Composable"]) -> Any:
+        if obj._ff_config is None:
+            raise ValueError("ConfigProperty can only be accessed after initialization")
         return ConfigGet(obj._ff_config, obj)
+
+    def __set__(self, obj: "Composable", value: Union[dict, "Config", None]) -> None:
+        if not isinstance(value, Config):
+            raise ValueError("ConfigProperty can only be set with Config object")
+
+        if isinstance(value, Config):
+            obj.__dict__["_ff_config"] = value
+        elif isinstance(value, dict) or value is None:
+            obj.__dict__["_ff_config"] = Config(value, cls=obj.__class__)
+        else:
+            raise ValueError(f"Unknown config type: {type(value)}. Must be dict or Config")
 
 
 class Config:
@@ -54,10 +67,15 @@ class Config:
         cls: the pipeline class (default: None)
     """
 
+    if TYPE_CHECKING:
+        from pathlib import Path
+        store_result: "Path"
+        run_id: str
+
     def __init__(
         self,
         config: Optional[Union[dict, str]] = None,
-        cls: Optional[Type["Pipeline"]] = None
+        cls: Optional[Type["Composable"]] = None
     ):
         self._available_configs = set(DEFAULT_CONFIG.keys())
 
@@ -90,27 +108,28 @@ class Config:
 
             setattr(self, key, value)
 
-    def update_from_pipeline(self, cls: Type["Pipeline"]) -> None:
+    def update_from_pipeline(self, cls: Type["Composable"]) -> None:
         """Parse the pipeline configs from pipeline.Config"""
         classes = cls.mro()
-        for cls in reversed(classes):
-            if hasattr(cls, "Config"):
-                self.update_from_dict(cls.Config.__dict__)
+        for each_cls in reversed(classes):
+            if hasattr(each_cls, "Config"):
+                self.update_from_dict(each_cls.Config.__dict__)
 
     def update_from_config(self, config: "Config") -> None:
         """Parse the pipeline configs from another Config instance"""
         self.update_from_dict(config.export())
 
     def update(self, val: Any) -> None:
-        from .pipeline import Pipeline
+        from .base import Composable
         if isinstance(val, dict):
             self.update_from_dict(val)
-        elif isinstance(val, type) and issubclass(val, Pipeline):
+        elif isinstance(val, type) and issubclass(val, Composable):
             self.update_from_pipeline(val)
         elif isinstance(val, Config):
             self.update_from_config(val)
-        else:
-            raise ValueError(f"Unknown config type: {type(val)}")
+        # else:
+        #     import pdb; pdb.set_trace()
+        #     raise ValueError(f"Unknown config type: {type(val)}")
 
     def export(self) -> dict:
         """Export the config dict"""

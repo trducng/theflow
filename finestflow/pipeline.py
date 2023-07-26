@@ -1,19 +1,16 @@
-from pathlib import Path
-from typing import Any, Optional, Union, Callable
+from typing import Any, Optional, Callable
 
-from .config import Config, ConfigProperty
-from .context import SimpleMemoryContext, BaseContext
-from .step import StepWrapper
-from .utils import is_parent_of_child
-from .runs.base import RunTracker
+from .step import Step, StepProxy
 from .visualization import trace_pipelne_run
+from .base import Composable
 
+from finestflow.config import Config
+from finestflow.context import SimpleMemoryContext
 
-RESERVED_PIPELINE_KEYWORDS = ["Config", "config", "initialize", "run", "last_run"]
 RUN_EXTRA_PARAMS = ["_ff_from", "_ff_to"]
 
 
-class Pipeline:
+class Pipeline(Composable):
     """Subclass `Pipeline` to define and run your own flow
 
     Args:
@@ -23,121 +20,78 @@ class Pipeline:
         context: the context object for flow components to communicate with each other
     """
 
-    _ff_init_called = False
-    _ff_initializing = False
-    config = ConfigProperty()
+    _keywords = ["last_run", "apply", "Middleware", "middleware"]
 
-    def __init__(
-        self,
-        *,
-        kwargs: Optional[dict] = None,
-        config: Optional[Union[dict, str]] = None,
-        context: Optional[BaseContext] = None,
-    ):
-        self._ff_init_called = True
-        self._ff_kwargs = kwargs
-        self._ff_config: Config = Config(config=config, cls=self.__class__)
-        self._ff_context: BaseContext = (
-            SimpleMemoryContext() if context is None else context
-        )
-        self.last_run: RunTracker = RunTracker(self._ff_context)
+    class Middleware:
+        middleware = [
+            "finestflow.middleware.TrackProgressMiddleware",
+            "finestflow.middleware.SkipComponentMiddleware",
+        ]
+
+    def __init__(self, **params):
+        super().__init__(**params)
         self._ff_run_id: Optional[str] = None  # only available for root pipeline
-        self._ff_nodes = []
-        self._ff_initialize()
-        self._ff_prefix: Optional[str] = None
         self._is_pipeline_nested: bool = False
+        self.middleware = None
+        if middlware_cfg := getattr(self, "Middleware"):
+            from .utils import import_dotted_string
 
-    def initialize(self):
-        raise NotImplementedError("Please declare your steps in `initialize`")
+            next_call = self._run
+            for cls_name in reversed(middlware_cfg.middleware):
+                cls = import_dotted_string(cls_name)
+                next_call = cls(obj=self, next_call=next_call)
+            self.middleware = next_call
 
-    def run(self, *args, **kwargs):
-        raise NotImplementedError("Please route your steps into flow in `run`")
+    def _run(self, *args, **kwargs):
+        kwargs.pop("_ff_name", None)
+        return self.run(*args, **kwargs)
 
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name == "_ff_init_called" or name == "_ff_initializing":
-            return super().__setattr__(name, value)
+    def _make_composable(self, value) -> Composable:
+        if isinstance(value, Pipeline):
+            value._is_pipeline_nested = True
+        elif isinstance(value, Step):
+            # already good
+            pass
+        else:
+            value = StepProxy(ff_original_obj=value)
 
-        if not self._ff_init_called:
-            raise AttributeError(
-                "Please call `super().__init__()` at the top of your `__init__` method"
-            )
+        return value
 
-        # wrap object into step
-        if self._ff_initializing:
-            if name in RESERVED_PIPELINE_KEYWORDS:
-                raise AttributeError(
-                    f"`{name}` is a reserved keyword. Please use different name"
-                )
-
-            if name.startswith("_ff"):
-                raise AttributeError(f"Please don't start step name with `_ff`: {name}")
-
-            if name in self._ff_nodes:
-                raise AttributeError(
-                    f"Step name `{name}` is duplicated. Please use different name"
-                )
-
-            self._ff_nodes.append(name)
-            if isinstance(value, Pipeline):
-                # TODO: should have a clone functionality
-                value = value.__class__(
-                    kwargs=value._ff_kwargs,
-                    config=value._ff_config,
-                    context=self._ff_context,
-                )
-                value.is_pipeline_nested(True)
-            elif isinstance(value, StepWrapper):
-                value = StepWrapper(
-                    value._obj,
-                    config=self._ff_config,
-                    context=self._ff_context,
-                )
-            else:
-                value = StepWrapper(
-                    value,
-                    config=self._ff_config,
-                    context=self._ff_context,
-                )
-
-        return super().__setattr__(name, value)
-
-    def _ff_initialize(self):
-        self._ff_initializing = True
-        self.initialize()
-        self._ff_initializing = False
+    def _initialize(self):
+        if self._ff_config is None:
+            self.config = Config(cls=self.__class__)
+        if self._ff_context is None:
+            self.context = SimpleMemoryContext()
+        super()._initialize()
+        for node in self.nodes:
+            # TODO: this only works for 1 level, and doesn't work if Step
+            # is wrapped within Step
+            getattr(self, node).config = self._ff_config
+            getattr(self, node).context = self._ff_context
 
     def __call__(self, *args, **kwargs) -> Any:
         """Run the flow, accepting extra parameters for routing purpose"""
-        _ff_name = self._handle_step_name(kwargs.pop("_ff_name", ""))
-        if not self.is_pipeline_nested():
+        if not hasattr(self, "_ff_initializing"):
+            self._initialize()
+
+        _ff_name = self._handle_step_name(kwargs.get("_ff_name", ""))
+        if not self._is_pipeline_nested:
             # administrative setup
             self._ff_run_id = self.config.run_id
-            self._ff_context.clear_all()
-            self._ff_context.set("run_id", self._ff_run_id, context=None)
-            self.last_run.config = self._ff_config.export()
+            self.context.clear_all()
+            self.context.set("run_id", self._ff_run_id, context=None)
+            kwargs["_ff_name"] = _ff_name
 
-        args, kwargs = self._handle_run_kwargs(*args, **kwargs)
-        self._ff_context.create_local_context(context=_ff_name, exist_ok=True)
+        if _ff_name is not None:
+            self.context.create_local_context(context=_ff_name, exist_ok=True)
 
-        if _from := self._ff_context.get("from"):
-            if is_parent_of_child(_ff_name, _from):
-                self._ff_context.set("good_to_run", False, context=_ff_name)
-
-        output_ = self.run(*args, **kwargs)
-        self.last_run.log_progress(
-            _ff_name,
-            input= {"args": args, "kwargs": kwargs},
-            output= output_,
-            status= "run"
+        output = (
+            self.middleware(*args, **kwargs)
+            if self.middleware
+            else self._run(*args, **kwargs)
         )
 
-        # prepare the run path
-        if not self.is_pipeline_nested():
-            store_result: Optional[Path] = self.config.store_result
-            if store_result is not None:
-                self.last_run.persist(store_result, self._ff_run_id)
-
-        return output_
+        return output
 
     def _handle_step_name(self, _ff_name: str = "") -> str:
         """Combine the prefix and the step name, and pass it to the child steps.
@@ -149,8 +103,6 @@ class Pipeline:
             the processed step name
         """
         if self._ff_prefix is not None:
-            if not _ff_name:
-                raise AttributeError("Must provide _ff_name")
             if "." in _ff_name:
                 raise AttributeError("_ff_name cannot contain `.`")
             if "*" in _ff_name:
@@ -158,30 +110,10 @@ class Pipeline:
 
             _ff_name = ".".join([self._ff_prefix, _ff_name])
 
-        for node in self._ff_nodes:
+        for node in self.nodes:
             setattr(getattr(self, node), "_ff_prefix", _ff_name)
 
         return _ff_name
-
-    def _handle_run_kwargs(self, *args, **kwargs) -> tuple[list, dict]:
-        """Handle pipeline-specific kwargs passed into `run`.
-
-        Args:
-            args: the args passed into the pipeline
-            kwargs: the kwargs passed into the pipeline
-
-        Returns:
-            a tuple of processed args and kwargs
-        """
-        if _ff_from := kwargs.pop("_ff_from", None):
-            self._ff_context.set("from", _ff_from)
-        if _ff_to := kwargs.pop("_ff_to", None):
-            self._ff_context.set("to", _ff_to)
-        if _ff_from_run := kwargs.pop("_ff_from_run", None):
-            from_run = RunTracker(self._ff_context, "__from_run__")
-            from_run.load(run_path=_ff_from_run)
-
-        return args, kwargs
 
     @classmethod
     def visualize(cls):
@@ -192,22 +124,7 @@ class Pipeline:
         return trace_pipelne_run(cls)
 
     def apply(self, fn: Callable):
-        for node in self._ff_nodes:
+        for node in self.nodes:
             getattr(self, node).apply(fn)
         fn(self)
         return self
-
-    def is_pipeline_nested(self, is_nested: Optional[bool] = None) -> bool:
-        """Set whether the pipeline is nested or not
-
-        Args:
-            is_nested: set whether the pipeline is nested or not. If None, just return
-                the current value
-
-        Returns:
-            whether the pipeline is nested or not
-        """
-        if is_nested is not None:
-            self._is_pipeline_nested = is_nested
-
-        return self._is_pipeline_nested

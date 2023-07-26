@@ -1,109 +1,124 @@
 import logging
+from typing import Callable
 
-from .context import BaseContext
-from .utils import is_name_matched
-from .runs.base import RunTracker
+from .base import Composable
+from .config import Config
+from .context import SimpleMemoryContext
+
 
 logger = logging.getLogger(__name__)
 
 
-class StepWrapper:
-    """Transform existing object to follow step interface"""
+class Step(Composable):
+    _keywords = ["last_run", "Middleware", "middleware"]
 
-    def __init__(self, obj, config, context):
-        self._ff_obj = obj
-        self._ff_config = config
-        self._ff_prefix = ""
-        self._ff_context: BaseContext = context
-        self._ff_last_run = RunTracker(self._ff_context)
+    class Middleware:
+        middleware = [
+            "finestflow.middleware.TrackProgressMiddleware",
+            "finestflow.middleware.SkipComponentMiddleware",
+        ]
 
-    def __getattr__(self, name):
-        if name.startswith("_ff"):
-            return super().__getattr__(name)
+    def __init__(self, **params):
+        super().__init__(**params)
+        self.middleware = None
+        if middlware_cfg := getattr(self, "Middleware"):
+            from .utils import import_dotted_string
 
-        attr = getattr(self._ff_obj, name)
-        if callable(attr):
-
-            def wrapper(*args, **kwargs):
-                """Wrap the calls
-
-                TODO: implement middleware-like approach to this wrapper.
-                Don't let the wrapper definition here. It's too long and too hard 
-                to debug.
-
-                Possible performs:
-                    - logging
-                    - profiling
-                    - caching
-                    - retrying
-                    - error handling
-                """
-                _ff_name: str = kwargs.pop("_ff_name", None)
-                if not _ff_name or not isinstance(_ff_name, str):
-                    # TODO: check for duplicated step name -> raise Error
-                    # TODO: check for empty string -> raise Error
-                    # TODO: check for non-string -> raise Error
-                    # TODO: check for None -> raise Error
-                    raise AttributeError(
-                        "Should pass _ff_name when running the step to ensure reproducibility"
-                    )
-                _ff_name = f"{self._ff_prefix}.{_ff_name}"
-
-                _status = "start"
-                # if self._ff_config.get("mode") == 'trace':
-                #     return "haha"
-                if self._ff_context.get("good_to_run", default=True, context=self._ff_prefix) is False:
-                    from_run = RunTracker(self._ff_context, which_progress="__from_run__")
-                    _input = {"args": args, "kwargs": kwargs}
-                    _status = "cached"
-                    _output = from_run.output(name=_ff_name)
-
-                    if is_name_matched(
-                        _ff_name,
-                        self._ff_context.get("from", context=None)
-                    ):
-                        _output = attr(*_input["args"], **_input["kwargs"])
-                        _status = "rerun"
-                        self._ff_context.set("good_to_run", True, context=self._ff_prefix)
-
-                    # TODO: should put "input" context earlier to save the input into cache in case of failure
-                    self._ff_last_run.log_progress(
-                        _ff_name, input=_input, output=_output, status=_status,
-                    )
-                    return _output
-
-                if self._ff_context.get("to", None) == _ff_name:
-                    self._ff_context.set("good_to_run", False, context=self._ff_prefix)
-
-                _input = {"args": args, "kwargs": kwargs}
-                _output = attr(*args, **kwargs)
-                _status = "run"
-                self._ff_last_run.log_progress(
-                    _ff_name, input=_input, output=_output, status=_status
-                )
-                return _output
-
-            wrapper.__name__ = name
-            wrapper.__qualname__ = f"{self._ff_obj.__class__.__name__}.{name}"
-
-            return wrapper
-
-        return attr
-
-    def __setattr__(self, name, value):
-        if name.startswith("_ff"):
-            return super().__setattr__(name, value)
-
-        return getattr(self._ff_obj, name).__setattr__(name, value)
-
-    def __getstate__(self):
-        return self.__dict__
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
+            next_call = self._run
+            for cls_name in reversed(middlware_cfg.middleware):
+                cls = import_dotted_string(cls_name)
+                next_call = cls(obj=self, next_call=next_call)
+            self.middleware = next_call
 
     def __call__(self, *args, **kwargs):
-        return self.__getattr__("__call__")(*args, **kwargs)
+        if self._ff_config is None:
+            self.config = Config(cls=self.__class__)
+        if self._ff_context is None:
+            self.context = SimpleMemoryContext()
 
-    def __add__(self, other):
-        return self.__getattr__("__add__")(other)
+        if self.middleware:
+            return self.middleware(*args, **kwargs)
+        return self._run(*args, **kwargs)
+
+    def _run(self, *args, **kwargs):
+        kwargs.pop("_ff_name", None)
+        return self.run(*args, **kwargs)
+
+
+
+class StepProxy(Composable):
+    """Wrap an object to be a step
+
+    `StepProxy` demonstrates the same behavior as `Step`. The only difference is that
+    `StepProxy` doesn't know how the object will be called (e.g. `__call__` or any
+    methods) so it lazily exposes the methods when called.
+
+    Cannot use this class directly because Composable reserves some common _keywords
+    that can conflict with original object.
+    """
+
+    ff_original_obj: Callable
+
+    _keywords = ["last_run", "Middleware", "middlewares"]
+
+    class Middleware:
+        middleware = [
+            "finestflow.middleware.TrackProgressMiddleware",
+            "finestflow.middleware.SkipComponentMiddleware",
+        ]
+
+    def __init__(self, **params):
+        super().__init__(**params)
+        if isinstance(self.ff_original_obj, Step):
+            logger.warning("Unnecessary to wrap a Step object with StepProxy")
+
+    def _create_callable(self, callable_obj):
+
+        def wrapper(*args, **kwargs):
+            kwargs.pop("_ff_name", None)
+            return callable_obj(*args, **kwargs)
+
+        if middlware_cfg := getattr(self, "Middleware"):
+            from .utils import import_dotted_string
+
+            next_call = wrapper
+            for cls_name in reversed(middlware_cfg.middleware):
+                cls = import_dotted_string(cls_name)
+                next_call = cls(obj=self, next_call=next_call)
+            return next_call
+
+        return wrapper
+
+    def run(self, *args, **kwargs):
+        """Pass-through to the original object"""
+        return self.ff_original_obj.run(*args, **kwargs)
+
+    def initialize_nodes(self, *args, **kwargs):
+        """Pass-through to the original object"""
+        return self.ff_original_obj.initialize_nodes(*args, **kwargs)
+
+    def __call__(self, *args, **kwargs):
+        if self._ff_config is None:
+            self.config = Config(cls=self.__class__)
+        if self._ff_context is None:
+            self.context = SimpleMemoryContext()
+
+        return self._create_callable(getattr(self.ff_original_obj, "__call__"))(
+            *args, **kwargs
+        )
+
+    def __getattr__(self, name):
+        if "ff_original_obj" not in self.__dict__:
+            raise AttributeError(
+                f"{self.__class__.__name__} object has no attribute {name}"
+            )
+
+        if self._ff_config is None:
+            self.config = Config(cls=self.__class__)
+        if self._ff_context is None:
+            self.context = SimpleMemoryContext()
+
+        attr = getattr(self.ff_original_obj, name)
+        if callable(attr):
+            attr = self._create_callable(attr)
+        return attr
