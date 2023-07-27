@@ -2,7 +2,7 @@ import shutil
 from pathlib import Path
 from unittest import TestCase
 
-from finestflow.pipeline import Pipeline
+from finestflow.base import Composable
 
 
 class IncrementBy:
@@ -13,7 +13,7 @@ class IncrementBy:
         return self.x + y
 
 
-class SequentialPipeline(Pipeline):
+class SequentialPipeline(Composable):
     class Config:
         store_result = ".test_temporary"
         run_id = "test_workflow_from"

@@ -1,4 +1,4 @@
-from .pipeline import Pipeline
+from .base import Composable
 
 
-__all__ = ["Pipeline"]
+__all__ = ["Composable"]

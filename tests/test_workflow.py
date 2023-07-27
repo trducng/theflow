@@ -1,7 +1,7 @@
 import multiprocessing
 from unittest import TestCase
 
-from finestflow.pipeline import Pipeline
+from finestflow.base import Composable
 
 
 class IncrementBy:
@@ -30,7 +30,7 @@ def allow_multiprocessing(kwargs):
     func = kwargs.pop("func")
     return func.run(**kwargs)
 
-class MultiprocessingWorkFlow(Pipeline):
+class MultiprocessingWorkFlow(Composable):
     def initialize(self):
         self.increment_by = IncrementBy(1)
         self.decrement_by = DecrementBy(1)

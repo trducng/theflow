@@ -32,7 +32,7 @@ pip install finestflow
 Pipeline can be defined as code. You initialize all the ops in `self.initialize` and route them in `self.run`. In `self.run`, you associate each step with a name `_ff_name`, which finestflow use to identify the edge in the flow graph.
 
 ```python
-from finestflow import Pipeline
+from finestflow import Composable
 
 # Define some operations used inside the pipeline
 # Operation 1: normal class-based Python object
@@ -51,7 +51,7 @@ def decrement_by_5(x):
   return x - 5
 
 # Declare flow
-class MathFlow(Pipeline):
+class MathFlow(Composable):
 
   def initialize(self):
     # Initialize operations in the flow

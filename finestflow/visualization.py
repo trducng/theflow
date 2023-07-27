@@ -1,7 +1,6 @@
 import ast
 import inspect
 from collections import defaultdict
-from typing import Any
 
 
 IGNORE = (

@@ -2,8 +2,7 @@ import logging
 from typing import Callable, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .pipeline import Pipeline
-    from .step import StepProxy
+    from .base import Composable, ComposableProxy
 
 logger = logging.getLogger(__name__)
 
@@ -11,22 +10,21 @@ logger = logging.getLogger(__name__)
 class Middleware:
     """Middleware template to work on the input and output of a node"""
 
-    def __init__(self, obj: Union["Pipeline", "StepProxy"], next_call: Callable):
+    def __init__(self, obj: Union["Composable", "ComposableProxy"], next_call: Callable):
 
-        from .pipeline import Pipeline
-        from .step import StepProxy
+        from .base import Composable, ComposableProxy
 
         if obj is None:
             raise ValueError("obj must be specified")
         self.obj = obj
         self.obj_type: str = ""
-        if isinstance(obj, Pipeline):
-            self.obj_type = "pipeline"
-        elif isinstance(obj, StepProxy):
+        if isinstance(obj, ComposableProxy):
             self.obj_type = "step"
+        elif isinstance(obj, Composable):
+            self.obj_type = "pipeline"
         else:
             raise AttributeError(
-                f"obj must be either Pipeline or StepProxy, got {type(obj)}"
+                f"obj must be either Composable or ComposableProxy, got {type(obj)}"
             )
         self.next_call = next_call
 
