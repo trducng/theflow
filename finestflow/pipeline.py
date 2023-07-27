@@ -1,13 +1,11 @@
 from typing import Any, Optional, Callable
 
-from .step import Step, StepProxy
+from .step import StepProxy
 from .visualization import trace_pipelne_run
 from .base import Composable
 
 from finestflow.config import Config
 from finestflow.context import SimpleMemoryContext
-
-RUN_EXTRA_PARAMS = ["_ff_from", "_ff_to"]
 
 
 class Pipeline(Composable):
@@ -49,8 +47,7 @@ class Pipeline(Composable):
     def _make_composable(self, value) -> Composable:
         if isinstance(value, Pipeline):
             value._is_pipeline_nested = True
-        elif isinstance(value, Step):
-            # already good
+        elif isinstance(value, StepProxy):
             pass
         else:
             value = StepProxy(ff_original_obj=value)
@@ -64,8 +61,6 @@ class Pipeline(Composable):
             self.context = SimpleMemoryContext()
         super()._initialize()
         for node in self.nodes:
-            # TODO: this only works for 1 level, and doesn't work if Step
-            # is wrapped within Step
             getattr(self, node).config = self._ff_config
             getattr(self, node).context = self._ff_context
 
@@ -85,13 +80,9 @@ class Pipeline(Composable):
         if _ff_name is not None:
             self.context.create_local_context(context=_ff_name, exist_ok=True)
 
-        output = (
-            self.middleware(*args, **kwargs)
-            if self.middleware
-            else self._run(*args, **kwargs)
-        )
-
-        return output
+        if self.middleware:
+            return self.middleware(*args, **kwargs)
+        return self._run(*args, **kwargs)
 
     def _handle_step_name(self, _ff_name: str = "") -> str:
         """Combine the prefix and the step name, and pass it to the child steps.
@@ -124,6 +115,7 @@ class Pipeline(Composable):
         return trace_pipelne_run(cls)
 
     def apply(self, fn: Callable):
+        """Apply a function recursively to all nodes in a pipeline"""
         for node in self.nodes:
             getattr(self, node).apply(fn)
         fn(self)

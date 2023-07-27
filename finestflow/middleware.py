@@ -1,40 +1,34 @@
 import logging
 from typing import Callable, Union, TYPE_CHECKING
-from .base import Composable
 
 if TYPE_CHECKING:
     from .pipeline import Pipeline
-    from .step import Step, StepProxy
+    from .step import StepProxy
 
 logger = logging.getLogger(__name__)
 
 
-class Middleware(Composable):
+class Middleware:
     """Middleware template to work on the input and output of a node"""
 
-    next_call: Union[Composable, Callable]
-    obj: Union["Pipeline", "Step", "StepProxy"]
-
-    _keywords = ["obj_type"]
-
-    def __init__(self, **params):
-        super().__init__(**params)
+    def __init__(self, obj: Union["Pipeline", "StepProxy"], next_call: Callable):
 
         from .pipeline import Pipeline
-        from .step import Step, StepProxy
+        from .step import StepProxy
 
-        obj = params.get("obj", None)
         if obj is None:
             raise ValueError("obj must be specified")
+        self.obj = obj
         self.obj_type: str = ""
         if isinstance(obj, Pipeline):
             self.obj_type = "pipeline"
-        elif isinstance(obj, (Step, StepProxy)):
+        elif isinstance(obj, StepProxy):
             self.obj_type = "step"
         else:
             raise AttributeError(
-                f"obj must be either Pipeline or Step, got {type(obj)}"
+                f"obj must be either Pipeline or StepProxy, got {type(obj)}"
             )
+        self.next_call = next_call
 
     def run_step(self, *args, **kwargs):
         return args, kwargs
@@ -42,7 +36,7 @@ class Middleware(Composable):
     def run_pipeline(self, *args, **kwargs):
         return args, kwargs
 
-    def run(self, *args, **kwargs):
+    def __call__(self, *args, **kwargs):
         if self.obj_type == "step":
             return self.run_step(*args, **kwargs)
         elif self.obj_type == "pipeline":
@@ -180,8 +174,8 @@ class TrackProgressMiddleware(Middleware):
 
         return output
 
-    def run(self, *args, **kwargs):
+    def __call__(self, *args, **kwargs):
         from .runs.base import RunTracker
 
         self.obj.last_run = RunTracker(self.obj.context)
-        return super().run(*args, **kwargs)
+        return super().__call__(*args, **kwargs)

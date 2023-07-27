@@ -159,7 +159,6 @@ class Composable:
             return False
 
         from .pipeline import Pipeline
-        from .step import Step
 
         if isinstance(cls, _UnionGenericAlias):
             # Handle Union[...]

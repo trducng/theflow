@@ -9,45 +9,9 @@ from .context import SimpleMemoryContext
 logger = logging.getLogger(__name__)
 
 
-class Step(Composable):
-    _keywords = ["last_run", "Middleware", "middleware"]
-
-    class Middleware:
-        middleware = [
-            "finestflow.middleware.TrackProgressMiddleware",
-            "finestflow.middleware.SkipComponentMiddleware",
-        ]
-
-    def __init__(self, **params):
-        super().__init__(**params)
-        self.middleware = None
-        if middlware_cfg := getattr(self, "Middleware"):
-            from .utils import import_dotted_string
-
-            next_call = self._run
-            for cls_name in reversed(middlware_cfg.middleware):
-                cls = import_dotted_string(cls_name)
-                next_call = cls(obj=self, next_call=next_call)
-            self.middleware = next_call
-
-    def __call__(self, *args, **kwargs):
-        if self._ff_config is None:
-            self.config = Config(cls=self.__class__)
-        if self._ff_context is None:
-            self.context = SimpleMemoryContext()
-
-        if self.middleware:
-            return self.middleware(*args, **kwargs)
-        return self._run(*args, **kwargs)
-
-    def _run(self, *args, **kwargs):
-        kwargs.pop("_ff_name", None)
-        return self.run(*args, **kwargs)
-
-
 
 class StepProxy(Composable):
-    """Wrap an object to be a step
+    """Wrap an object to be a step.
 
     `StepProxy` demonstrates the same behavior as `Step`. The only difference is that
     `StepProxy` doesn't know how the object will be called (e.g. `__call__` or any
@@ -55,6 +19,8 @@ class StepProxy(Composable):
 
     Cannot use this class directly because Composable reserves some common _keywords
     that can conflict with original object.
+
+    Raise ValueError in case of conflict.
     """
 
     ff_original_obj: Callable
@@ -69,8 +35,8 @@ class StepProxy(Composable):
 
     def __init__(self, **params):
         super().__init__(**params)
-        if isinstance(self.ff_original_obj, Step):
-            logger.warning("Unnecessary to wrap a Step object with StepProxy")
+        if isinstance(self.ff_original_obj, StepProxy):
+            raise ValueError("Unnecessary to wrap a StepProxy object with StepProxy")
 
     def _create_callable(self, callable_obj):
 
@@ -108,6 +74,9 @@ class StepProxy(Composable):
         )
 
     def __getattr__(self, name):
+        if name.startswith("_"):
+            return super().__getattr__(name)
+
         if "ff_original_obj" not in self.__dict__:
             raise AttributeError(
                 f"{self.__class__.__name__} object has no attribute {name}"
