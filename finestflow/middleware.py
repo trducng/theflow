@@ -159,13 +159,13 @@ class TrackProgressMiddleware(Middleware):
         return _output
 
     def run_pipeline(self, *args, **kwargs):
-        if not self.obj._is_pipeline_nested:  # pyright: reportGeneralTypeIssues=false
+        if self.obj._ff_prefix is None:  
             self.obj.last_run.config = (
                 self.obj._ff_config.export()
             )  # pyright: reportOptionalMemberAccess=false
 
         output = self.run_step(*args, **kwargs)
-        if not self.obj._is_pipeline_nested:
+        if self.obj._ff_prefix is None:
             store_result = self.obj.config.store_result
             if store_result is not None and isinstance(self.obj._ff_run_id, str):
                 self.obj.last_run.persist(str(store_result), self.obj._ff_run_id)
