@@ -134,6 +134,23 @@ def is_parent_of_child(parent: str, child: str) -> bool:
     return is_name_matched(parent, pattern)
 
 
+def reindent_docstring(docin: str) -> str:
+    """Remove beginning whitespace in a docstring"""
+    if not docin:
+        return ""
+
+    whitespaces = re.findall(r"\n[ \t]+", docin)
+    if whitespaces:
+        min_whitespace = min(whitespaces)[1:]
+        lines = []
+        for line in docin.splitlines():
+            if line.startswith(min_whitespace):
+                line = line[len(min_whitespace):]
+            lines.append(line)
+        docin = "\n".join(lines).strip()
+    return docin
+
+
 if __name__ == "__main__":
     names = [
         "",
