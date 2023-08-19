@@ -848,7 +848,7 @@ class ComposableProxy(Composable):
         if name.startswith("_"):
             return super().__getattr__(name)
 
-        if "ff_original_obj" not in self.__dict__:
+        if "ff_original_obj" not in self._ff_params:
             raise AttributeError(
                 f"{self.__class__.__qualname__} object has no attribute {name}"
             )
