@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from finestflow.utils import is_name_matched, is_parent_of_child
+from theflow.utils import is_name_matched, is_parent_of_child
 
 
 class TestNameMatching(TestCase):

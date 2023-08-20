@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional, Union
 
 
-FINESTFLOW_DIR = ".finestflow"
+THEFLOW_DIR = ".theflow"
 
 
 def project_root(loc: Optional[Union[str, Path]]) -> Optional[Path]:
@@ -28,55 +28,55 @@ def project_root(loc: Optional[Union[str, Path]]) -> Optional[Path]:
     return None
 
 
-def get_finestflow_path(loc: Optional[Union[str, Path]]) -> Optional[Path]:
-    """Get the finestflow directory (contains .finestflow/)
+def get_theflow_path(loc: Optional[Union[str, Path]]) -> Optional[Path]:
+    """Get the theflow directory (contains .theflow/)
 
     Args:
-        loc: the location to start searching for the finestflow directory. If None,
+        loc: the location to start searching for the theflow directory. If None,
             assume the current working directory
 
     Returns:
-        the finestflow directory, or None if not found
+        the theflow directory, or None if not found
     """
     loc = Path.cwd() if loc is None else Path(loc)
     while loc != loc.parent:
-        if (loc / FINESTFLOW_DIR).exists():
-            return loc / FINESTFLOW_DIR
+        if (loc / THEFLOW_DIR).exists():
+            return loc / THEFLOW_DIR
         loc = loc.parent
 
     return None
 
 
-def get_or_create_finestflow_path(loc: Optional[str]=None) -> Path:
-    """Get the finestflow directory (.finestflow/) or create it if not exists
+def get_or_create_theflow_path(loc: Optional[str]=None) -> Path:
+    """Get the theflow directory (.theflow/) or create it if not exists
 
-    It travels up the directory tree until it finds the finestflow directory. If not
-    found, it creates the finestflow directory in the project root folder. If there
-    isn't project root folder, it creates the finestflow directory in the current
+    It travels up the directory tree until it finds the theflow directory. If not
+    found, it creates the theflow directory in the project root folder. If there
+    isn't project root folder, it creates the theflow directory in the current
     working directory.
 
     Args:
-        loc: the location to start searching for the finestflow directory. If None,
+        loc: the location to start searching for the theflow directory. If None,
             assume the current working directory
 
     Returns:
-        the finestflow directory
+        the theflow directory
     """
     if loc is None:
         loc = Path.cwd()
     loc = Path(loc)
-    finestflow_path = get_finestflow_path(loc)
-    if finestflow_path is not None:
-        return finestflow_path
+    flow_path = get_theflow_path(loc)
+    if flow_path is not None:
+        return flow_path
 
     project_root_path = project_root(loc)
     if project_root_path is None:
-        finestflow_path = Path.cwd() / FINESTFLOW_DIR
+        flow_path = Path.cwd() / THEFLOW_DIR
     else:
-        finestflow_path = project_root_path / FINESTFLOW_DIR
+        flow_path = project_root_path / THEFLOW_DIR
 
-    finestflow_path.mkdir(exist_ok=True, parents=True)
-    return finestflow_path
+    flow_path.mkdir(exist_ok=True, parents=True)
+    return flow_path
 
 
 def import_dotted_string(dotted_string):

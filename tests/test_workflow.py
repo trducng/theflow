@@ -1,7 +1,7 @@
 import multiprocessing
 from unittest import TestCase
 
-from finestflow.base import Composable
+from theflow.base import Composable
 
 
 class IncrementBy:

@@ -1,4 +1,4 @@
-from typing import Any, Callable, Optional, Type, Union, TYPE_CHECKING
+from typing import Any, Optional, Type, Union, TYPE_CHECKING
 
 import yaml 
 
@@ -9,8 +9,8 @@ from .utils import import_dotted_string
 
 DEFAULT_CONFIG = {
     # don't store the result if None
-    "store_result": "{{ finestflow.callbacks.store_result__project_root }}",
-    "run_id": "{{ finestflow.callbacks.run_id__timestamp }}",
+    "store_result": "{{ theflow.callbacks.store_result__project_root }}",
+    "run_id": "{{ theflow.callbacks.run_id__timestamp }}",
 }
 
 

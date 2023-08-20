@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from finestflow.context.in_memory import SimpleMemoryContext
+from theflow.context.in_memory import SimpleMemoryContext
 
 
 class X:

@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from finestflow.base import Composable
-from .utils import get_or_create_finestflow_path
+from theflow.base import Composable
+from .utils import get_or_create_theflow_path
 
 
 def run_id__timestamp(obj: Composable) -> str:
@@ -10,4 +10,4 @@ def run_id__timestamp(obj: Composable) -> str:
 
 
 def store_result__project_root(obj: Composable) -> Path:
-    return get_or_create_finestflow_path()
+    return get_or_create_theflow_path()

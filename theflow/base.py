@@ -400,8 +400,8 @@ class Composable(metaclass=MetaComposable):
 
     class Middleware:
         middleware = [
-            "finestflow.middleware.TrackProgressMiddleware",
-            "finestflow.middleware.SkipComponentMiddleware",
+            "theflow.middleware.TrackProgressMiddleware",
+            "theflow.middleware.SkipComponentMiddleware",
         ]
 
     config = ConfigProperty()

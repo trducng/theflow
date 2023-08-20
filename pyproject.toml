@@ -3,8 +3,8 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-version = "0.1.1"
-name = "finestflow"
+version = "0.2.0"
+name = "theflow"
 authors = [{ name = "trducng", email = "trungduc1992@gmail.com" }]
 description = "Manage your prompts"
 readme = "README.md"
@@ -17,4 +17,4 @@ dependencies = ["pyyaml"]
 dev = ["pytest", "pytest-cov", "black", "flake8", "mypy", "isort", "pre-commit", "notebook", "ipython"]
 
 [tool.setuptools.packages.find]
-include = ["finestflow", "finestflow.*"]
+include = ["theflow", "theflow.*"]
