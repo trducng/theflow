@@ -14,7 +14,11 @@ classifiers = ["Programming Language :: Python :: 3"]
 dependencies = ["pyyaml"]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "black", "flake8", "mypy", "isort", "pre-commit", "notebook", "ipython"]
+dev = ["pytest", "pytest-cov", "black", "flake8", "mypy", "isort", "pre-commit", "notebook", "ipython", "build", "twine"]
+
+[project.urls]
+Homepage = "https://github.com/trducng/theflow"
+Repository = "https://github.com/trducng/theflow"
 
 [tool.setuptools.packages.find]
 include = ["theflow", "theflow.*"]
