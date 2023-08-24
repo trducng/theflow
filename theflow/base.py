@@ -4,7 +4,18 @@ import logging
 from copy import deepcopy
 from collections import defaultdict
 from functools import lru_cache
-from typing import Any, Callable, Optional, _UnionGenericAlias, ForwardRef, Type, Union
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    _UnionGenericAlias,
+    ForwardRef,
+    Type,
+    Union,
+    Generic,
+    TypeVar,
+    cast,
+)
 
 from .config import Config, ConfigProperty
 from .context import BaseContext, SimpleMemoryContext
@@ -82,7 +93,9 @@ class _BLANK_VALUE:
 _blank = _BLANK_VALUE()
 
 
-class Param:
+Attribute = TypeVar("Attribute")
+
+class Param(Generic[Attribute]):
     """Control the behavior of a parameter in a Composable
 
     Args:
@@ -94,16 +107,16 @@ class Param:
 
     def __init__(
         self,
-        default: Any = _blank,
+        default: Union[Attribute, _BLANK_VALUE] = _blank,
         default_callback: Optional[
-            Callable[[Optional["Composable"], Optional[Type["Composable"]]], Any]
+            Callable[[Optional["Composable"], Optional[Type["Composable"]]], Attribute]
         ] = None,
         help: str = "",
         refresh_on_set: bool = False,
         strict_type: bool = False,
         depends_on: Optional[Union[str, list[str]]] = None,
     ):
-        self._default = default
+        self._default: Attribute = cast(Attribute, default)
         self._default_callback = default_callback
         self._help = help
         self._refresh_on_set = refresh_on_set
@@ -120,7 +133,7 @@ class Param:
 
     def __get__(
         self, obj: Optional["Composable"], type_: Optional[Type["Composable"]] = None
-    ) -> Any:
+    ) -> Attribute:
         if obj is None:
             if self._default_callback:
                 return self._default_callback(obj, type_)
@@ -201,7 +214,7 @@ class Param:
             if self._refresh_on_set:
                 obj._initialize()
 
-    def __set_name__(self, owner, name):
+    def __set_name__(self, owner: str, name: str):
         self._name = name
         self._owner = owner
 
