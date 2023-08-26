@@ -19,6 +19,7 @@ from typing import (
 
 from .config import Config, ConfigProperty
 from .context import BaseContext, SimpleMemoryContext
+from .exceptions import InvalidParamDefinition
 from .visualization import trace_pipelne_run
 from .utils import reindent_docstring
 
@@ -95,6 +96,7 @@ _blank = _BLANK_VALUE()
 
 Attribute = TypeVar("Attribute")
 
+
 class Param(Generic[Attribute]):
     """Control the behavior of a parameter in a Composable
 
@@ -103,6 +105,10 @@ class Param(Generic[Attribute]):
         default_callback: callback function to generate the default value. This
             callback takes in the Composable object and output the default value.
         refresh_on_set: if True, the original object will be refreshed when it is set
+        depends_on: if set, the value of the parameter will be calculated from the
+            values of the depends_on parameters (requires `default_callback`)
+        no_cache: if True, the value of the parameter will not be cached and will be
+            recalculated everytime it is accessed (requires `default_callback`)
     """
 
     def __init__(
@@ -115,20 +121,30 @@ class Param(Generic[Attribute]):
         refresh_on_set: bool = False,
         strict_type: bool = False,
         depends_on: Optional[Union[str, list[str]]] = None,
+        no_cache: bool = False,
     ):
         self._default: Attribute = cast(Attribute, default)
         self._default_callback = default_callback
         self._help = help
         self._refresh_on_set = refresh_on_set
         self._strict_type = strict_type
+        self._no_cache = no_cache
         self._type = None
 
         if isinstance(depends_on, str):
             depends_on = [depends_on]
         self._depends_on: Optional[list[str]] = depends_on
+
+    def _validate_args(self):
+        """Validate the __init__ args"""
+
         if self._depends_on and not self._default_callback:
-            raise ValueError(
-                f"If depends_on is set, default_callback must be provided to compute the value: {self._name}"
+            raise InvalidParamDefinition(
+                f"Must provide `default_callback` when param has `depends_on`: {self._qual_name}"
+            )
+        if self._depends_on and self._no_cache:
+            raise InvalidParamDefinition(
+                f"Cannot set `no_cache=True` if param has `depends_on`: {self._qual_name}"
             )
 
     def __get__(
@@ -148,7 +164,7 @@ class Param(Generic[Attribute]):
 
         if self._depends_on:
             self._calculate_from_depends_on(obj, type_)
-        elif self._name not in obj.__ff_params__:
+        elif self._name not in obj.__ff_params__ or self._no_cache:
             if self._default_callback:
                 value = self._default_callback(obj, type_)
             elif not isinstance(self._default, _BLANK_VALUE):
@@ -177,7 +193,7 @@ class Param(Generic[Attribute]):
             if old_id != new_id:
                 if self._default_callback is None:
                     raise ValueError(
-                        f"Parameter {self._name} depends on {self._depends_on} "
+                        f"Param {self._qual_name} depends on {self._depends_on} "
                         "is a computed param and require default_callback"
                     )
                 value = self._default_callback(obj, type_)
@@ -194,7 +210,7 @@ class Param(Generic[Attribute]):
     def __set__(self, obj: "Composable", value: Any):
         if self._depends_on:
             raise ValueError(
-                f"Parameter {self._name} depends on {self._depends_on}, cannot be set directly"
+                f"Param {self._qual_name} depends on {self._depends_on}, cannot be set directly"
             )
 
         if self._strict_type:
@@ -214,9 +230,29 @@ class Param(Generic[Attribute]):
             if self._refresh_on_set:
                 obj._initialize()
 
-    def __set_name__(self, owner: str, name: str):
+    def __set_name__(self, owner: type, name: str):
         self._name = name
         self._owner = owner
+        self._qual_name = (
+            f"{self._owner.__module__}.{self._owner.__name__}.{self._name}"
+        )
+
+        # validate after receiving the name and type for actionable error message
+        self._validate_args()
+
+    @classmethod
+    def decorate(cls, **kwargs):
+        """Automatically set the `defeault_callback`"""
+        if "default_callback" in kwargs:
+            raise InvalidParamDefinition(
+                "Redundant `default_callback` in Param.decorate: "
+                f"({kwargs['default_callback']})"
+            )
+
+        def inner(func):
+            return cls(default_callback=lambda obj, _: func(obj), **kwargs)
+
+        return inner
 
 
 class Node:
@@ -232,6 +268,7 @@ class Node:
             ]
         ] = None,
         depends_on: Optional[Union[str, list[str]]] = None,
+        no_cache: bool = False,
         help: str = "",
         input: Union[_BLANK_VALUE, dict[str, Any]] = _blank,
         output: Any = _blank,
@@ -243,6 +280,11 @@ class Node:
         if isinstance(depends_on, str):
             depends_on = [depends_on]
         self._depends_on: Optional[list[str]] = depends_on
+        self._no_cache = no_cache
+        if self._depends_on and self._no_cache:
+            raise ValueError(
+                f"depends_on and no_cache cannot be both set: {self._name}"
+            )
 
         self._input: Union[_BLANK_VALUE, dict[str, Any]] = input
         self._output: Any = output
@@ -274,7 +316,7 @@ class Node:
 
         if self._depends_on:
             self._calculate_from_depends_on(obj, type_)
-        elif self._name not in obj.__ff_nodes__:
+        elif self._name not in obj.__ff_nodes__ or self._no_cache:
             if self._default_callback:
                 value = self._default_callback(obj, type_)
             elif not isinstance(self._default, _BLANK_VALUE):
@@ -334,17 +376,6 @@ class Node:
         self._owner = owner
 
 
-def param(depends_on: Optional[Union[str, list[str]]] = None):
-    def inner(func):
-        return Param(
-            default_callback=lambda obj, _: func(obj),
-            help=reindent_docstring(func.__doc__),
-            depends_on=depends_on,
-        )
-
-    return inner
-
-
 def node(depends_on: Optional[Union[str, list[str]]] = None):
     def inner(func):
         return Node(
@@ -370,7 +401,13 @@ class MetaComposable(type):
                 desc = Param(default=attrs[name]) if name in attrs else Param()
             attrs[name] = desc
 
-        obj: Type["Composable"] = super().__new__(cls, clsname, bases, attrs)  # type: ignore
+        try:
+            obj: Type["Composable"] = super().__new__(cls, clsname, bases, attrs)  # type: ignore
+        except Exception as e:
+            cause = getattr(e, "__cause__", None)
+            if isinstance(cause, InvalidParamDefinition):
+                raise cause from None
+            raise e from None
 
         # Raise invalid nodes and params
         for name, value in attrs.items():
@@ -556,18 +593,10 @@ class Composable(metaclass=MetaComposable):
         if name.startswith("_"):
             return super().__setattr__(name, value)
 
-        if name in self.__class__._protected_keywords():
-            return super().__setattr__(name, value)
-
         if name in self._ff_nodes:
             value = self._make_composable(value)
 
-        try:
-            return super().__setattr__(name, value)
-        except Exception:
-            raise ValueError(
-                f"Cannot set {self.__class__}.{name} to {value}: param {name} not declared"
-            )
+        return super().__setattr__(name, value)
 
     def _initialize(self):
         # TODO: move setting up config and context out of _initialize. They do not have
