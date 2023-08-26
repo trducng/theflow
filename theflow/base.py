@@ -15,13 +15,19 @@ from typing import (
     Generic,
     TypeVar,
     cast,
+    TYPE_CHECKING,
 )
+
+import yaml
 
 from .config import Config, ConfigProperty
 from .context import BaseContext, SimpleMemoryContext
-from .exceptions import InvalidParamDefinition
+from .exceptions import InvalidNodeDefinition, InvalidParamDefinition
 from .visualization import trace_pipelne_run
 from .utils import reindent_docstring
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 logger = logging.getLogger(__name__)
@@ -250,9 +256,23 @@ class Param(Generic[Attribute]):
             )
 
         def inner(func):
-            return cls(default_callback=lambda obj, _: func(obj), **kwargs)
+            help: str = kwargs.pop("help", reindent_docstring(func.__doc__))
+            return cls(default_callback=lambda obj, _: func(obj), help=help, **kwargs)
 
         return inner
+
+    def to_dict(self) -> dict:
+        """Return the internal state of the Param as a dict"""
+        return {
+            "__type__": "@param",
+            "default": self._default,
+            "default_callback": self._default_callback,
+            "help": self._help,
+            "refresh_on_set": self._refresh_on_set,
+            "strict_type": self._strict_type,
+            "depends_on": self._depends_on,
+            "no_cache": self._no_cache,
+        }
 
 
 class Node:
@@ -375,16 +395,34 @@ class Node:
         self._name = name
         self._owner = owner
 
+    @classmethod
+    def decorate(cls, **kwargs):
+        """Automatically set the `defeault_callback`"""
+        if "default_callback" in kwargs:
+            raise InvalidNodeDefinition(
+                "Redundant `default_callback` in Node.decorate: "
+                f"({kwargs['default_callback']})"
+            )
 
-def node(depends_on: Optional[Union[str, list[str]]] = None):
-    def inner(func):
-        return Node(
-            default_callback=lambda obj, _: func(obj),
-            help=reindent_docstring(func.__doc__),
-            depends_on=depends_on,
-        )
+        def inner(func):
+            help: str = kwargs.pop("help", reindent_docstring(func.__doc__))
+            return cls(default_callback=lambda obj, _: func(obj), help=help, **kwargs)
 
-    return inner
+        return inner
+
+    def to_dict(self) -> dict:
+        """Return the internal state of a node as dict"""
+        return {
+            "type": "@node",
+            "default": self._default,
+            "default_kwargs": self._default_kwargs,
+            "default_callback": self._default_callback,
+            "help": self._help,
+            "depends_on": self._depends_on,
+            "no_cache": self._no_cache,
+            "input": self._input,
+            "output": self._output,
+        }
 
 
 class MetaComposable(type):
@@ -709,13 +747,18 @@ class Composable(metaclass=MetaComposable):
         fn(self)
         return self
 
-    def set(self, kwargs: dict):
+    def set(self, kwargs: dict, strict: bool = False):
+        """Set the keyword arguments in the composable"""
         kwargs = unflatten_dict(kwargs)
         for name, value in kwargs.items():
             if name in self._ff_nodes and isinstance(value, dict):
-                getattr(self, name).set(value)
+                getattr(self, name).set(value, strict=strict)
             else:
-                setattr(self, name, value)
+                try:
+                    setattr(self, name, value)
+                except Exception as e:
+                    if strict:
+                        raise e from None
 
     def set_run(self, kwargs: dict, temp=False):
         """Set run keyword arguments
@@ -747,7 +790,7 @@ class Composable(metaclass=MetaComposable):
                     self.__ff_run_kwargs__[name] = value
 
     @classmethod
-    def _describe(cls) -> dict:
+    def _describe_cls(cls) -> dict:
         """Describe the pipeline fully, along with all the nodes and their parameters"""
         params, nodes = {}, {}
 
@@ -760,7 +803,7 @@ class Composable(metaclass=MetaComposable):
                     if isinstance(attr_value._default, type) and issubclass(
                         attr_value._default, Composable
                     ):
-                        value = attr_value._default._describe()
+                        value = attr_value._default._describe_cls()
                     nodes[attr] = value
                 elif isinstance(attr_value, Param) and attr not in params:
                     if attr_value._depends_on:
@@ -777,21 +820,13 @@ class Composable(metaclass=MetaComposable):
             "nodes": nodes,
         }
 
-    def describe(self, original=False) -> dict:
-        """Describe the pipeline, along with all the nodes and their parameters
-
-        Args:
-            original: if True, return the original description, otherwise return the
-                description of the current state
-        """
-        if original:
-            return self._describe()
-
+    def _describe_inst(self) -> dict:
+        """Describe the pipeline as instance method"""
         nodes = {}
         for node in self._ff_nodes:
             try:
-                node_obj = getattr(self, node)
-                nodes[node] = node_obj.describe()
+                node_obj: Composable = getattr(self, node)
+                nodes[node] = node_obj._describe_inst()
             except:
                 nodes[node] = None
 
@@ -806,6 +841,44 @@ class Composable(metaclass=MetaComposable):
             "params": params,
             "nodes": nodes,
         }
+
+    def describe(self, original=False, to: Optional["str|Path"] = None) -> dict:
+        """Describe the pipeline, along with all the nodes and their parameters
+
+        Args:
+            original: if True, return the original description, otherwise return the
+                description of the current state
+            to: path to save the description
+        """
+        if original:
+            info = self._describe_cls()
+        else:
+            info = self._describe_inst()
+
+        if to:
+            with open(to, "w") as fo:
+                yaml.dump(info, fo, sort_keys=False)
+
+        return info
+
+    def specs(self, path: str) -> dict:
+        """Get specification about a param or a node
+
+        Args:
+            path: the path to the node or param (.) delimited
+        """
+        if path.startswith("."):
+            path.strip(".")
+
+        if "." in path:
+            module, subpath = path.split(".", 1)
+            return getattr(self, module).specs(subpath)
+
+        definition = self.__class__.__dict__[path]
+        if not isinstance(definition, (Param, Node)):
+            raise ValueError(f"{path} is not a param or a node")
+
+        return definition.to_dict()
 
     def missing(self) -> dict[str, list[str]]:
         """Return the list of missing params and nodes"""
