@@ -1,8 +1,6 @@
-"""Define base pipeline functionalities that underly both pipeline and step"""
 import inspect
 import logging
 from abc import abstractmethod
-from copy import deepcopy
 from collections import defaultdict
 from functools import lru_cache
 from typing import (
@@ -25,7 +23,8 @@ from .config import Config, ConfigProperty
 from .context import BaseContext, SimpleMemoryContext
 from .exceptions import InvalidNodeDefinition, InvalidParamDefinition
 from .visualization import trace_pipelne_run
-from .utils import reindent_docstring
+from .utils.pretties import reindent_docstring, unflatten_dict
+from .utils.typings import is_compatible_with, input_signature, output_signature
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -46,65 +45,14 @@ def contains_composable_in_annotation(annotation) -> bool:
     return False
 
 
-def flatten_dict(indict: dict) -> dict:
-    """Flatten nested dict into 1-level dict
-
-    Example:
-        >>> flatten_dict({"a": {"b": 1}, "c": 2})
-        {"a.b": 1, "c": 2}
-
-    Args:
-        indict: input dict
-
-    Returns:
-        flattened dict
-    """
-    outdict = {}
-    for key, value in indict.items():
-        if isinstance(value, dict):
-            for subkey, subvalue in flatten_dict(value).items():
-                outdict[f"{key}.{subkey}"] = subvalue
-        else:
-            outdict[key] = value
-    return outdict
-
-
-def unflatten_dict(indict: dict) -> dict:
-    """Unflatten 1-level dict into nested dict
-
-    Example:
-        >>> unflatten_dict({"a.b": 1, "c": 2})
-        {"a": {"b": 1}, "c": 2}
-
-    Args:
-        indict: input dict
-
-    Returns:
-        unflattened dict
-    """
-    outdict = {}
-    for key, value in indict.items():
-        subkeys = key.split(".")
-        subdict = outdict
-        for subkey in subkeys[:-1]:
-            if subkey not in subdict:
-                subdict[subkey] = {}
-            subdict = subdict[subkey]
-        subdict[subkeys[-1]] = value
-    return outdict
-
-
-class _BLANK_VALUE:
+class empty:
     pass
 
 
-_blank = _BLANK_VALUE()
+ParamAttribute = TypeVar("ParamAttribute")
 
 
-Attribute = TypeVar("Attribute")
-
-
-class Param(Generic[Attribute]):
+class Param(Generic[ParamAttribute]):
     """Control the behavior of a parameter in a Composable
 
     Args:
@@ -120,9 +68,11 @@ class Param(Generic[Attribute]):
 
     def __init__(
         self,
-        default: Union[Attribute, _BLANK_VALUE] = _blank,
+        default: Union[ParamAttribute, Type["empty"]] = empty,
         default_callback: Optional[
-            Callable[[Optional["Composable"], Optional[Type["Composable"]]], Attribute]
+            Callable[
+                [Optional["Composable"], Optional[Type["Composable"]]], ParamAttribute
+            ]
         ] = None,
         help: str = "",
         refresh_on_set: bool = False,
@@ -130,7 +80,7 @@ class Param(Generic[Attribute]):
         depends_on: Optional[Union[str, list[str]]] = None,
         no_cache: bool = False,
     ):
-        self._default: Attribute = cast(Attribute, default)
+        self._default: ParamAttribute = cast(ParamAttribute, default)
         self._default_callback = default_callback
         self._help = help
         self._refresh_on_set = refresh_on_set
@@ -156,11 +106,11 @@ class Param(Generic[Attribute]):
 
     def __get__(
         self, obj: Optional["Composable"], type_: Optional[Type["Composable"]] = None
-    ) -> Attribute:
+    ) -> ParamAttribute:
         if obj is None:
             if self._default_callback:
                 return self._default_callback(obj, type_)
-            if isinstance(self._default, _BLANK_VALUE):
+            if self._default == empty:
                 raise AttributeError(
                     f"Parameter {self._name} is not set and has no default value"
                 )
@@ -174,7 +124,7 @@ class Param(Generic[Attribute]):
         elif self._name not in obj.__ff_params__ or self._no_cache:
             if self._default_callback:
                 value = self._default_callback(obj, type_)
-            elif not isinstance(self._default, _BLANK_VALUE):
+            elif self._default != empty:
                 value = self._default
             else:
                 raise AttributeError(
@@ -265,7 +215,7 @@ class Param(Generic[Attribute]):
     def to_dict(self) -> dict:
         """Return the internal state of the Param as a dict"""
         return {
-            "__type__": "@param",
+            "__type__": "param",
             "default": self._default,
             "default_callback": self._default_callback,
             "help": self._help,
@@ -281,7 +231,7 @@ class Node:
 
     def __init__(
         self,
-        default: Union[_BLANK_VALUE, Type["Composable"]] = _blank,
+        default: Union[Type["empty"], Type["Composable"]] = empty,
         default_kwargs: Optional[dict[str, Any]] = None,
         default_callback: Optional[
             Callable[
@@ -291,10 +241,10 @@ class Node:
         depends_on: Optional[Union[str, list[str]]] = None,
         no_cache: bool = False,
         help: str = "",
-        input: Union[_BLANK_VALUE, dict[str, Any]] = _blank,
-        output: Any = _blank,
+        input: Union[Type["empty"], dict[str, Any]] = empty,
+        output: Any = empty,
     ):
-        self._default = default
+        self._default = cast("Composable", default)
         self._default_kwargs: dict = default_kwargs or {}
         self._default_callback = default_callback
         self._help = help
@@ -307,18 +257,14 @@ class Node:
                 f"depends_on and no_cache cannot be both set: {self._name}"
             )
 
-        self._input: Union[_BLANK_VALUE, dict[str, Any]] = input
+        self._input: Union[Type["empty"], dict[str, Any]] = input
         self._output: Any = output
+
         has_run_method = callable(getattr(default, "run", None))
-        if self._input is _blank and has_run_method:
-            type_annotation = deepcopy(default.run.__annotations__)  # type: ignore
-            type_annotation.pop("return", None)
-            if type_annotation:
-                self._input = type_annotation
-        if self._output is _blank and has_run_method:
-            type_annotation = default.run.__annotations__.get("return")  # type: ignore
-            if type_annotation:
-                self._output = type_annotation
+        if self._input == empty and has_run_method:
+            self._input = input_signature(default.run)  # type: ignore
+        if self._output == empty and has_run_method:
+            self._output = output_signature(default.run)  # type: ignore
 
     def __get__(
         self, obj: Optional["Composable"], type_: Optional[Type["Composable"]] = None
@@ -326,7 +272,7 @@ class Node:
         if obj is None:
             if self._default_callback:
                 return self._default_callback(obj, type_)
-            if isinstance(self._default, _BLANK_VALUE):
+            if self._default == empty:
                 raise AttributeError(
                     f"Node {self._name} is not set and has no default value"
                 )
@@ -340,7 +286,7 @@ class Node:
         elif self._name not in obj.__ff_nodes__ or self._no_cache:
             if self._default_callback:
                 value = self._default_callback(obj, type_)
-            elif not isinstance(self._default, _BLANK_VALUE):
+            elif self._default != empty:
                 value = self._default(**self._default_kwargs)
             else:
                 raise AttributeError(
@@ -416,7 +362,7 @@ class Node:
     def to_dict(self) -> dict:
         """Return the internal state of a node as dict"""
         return {
-            "type": "@node",
+            "type": "node",
             "default": self._default,
             "default_kwargs": self._default_kwargs,
             "default_callback": self._default_callback,
@@ -540,7 +486,7 @@ class Composable(metaclass=MetaComposable):
 
         self._middleware = None
         if middlware_cfg := getattr(self, "Middleware"):
-            from .utils import import_dotted_string
+            from .utils.paths import import_dotted_string
 
             next_call = self._run
             for cls_name in reversed(middlware_cfg.middleware):
@@ -879,9 +825,11 @@ class Composable(metaclass=MetaComposable):
 
         Args:
             path: the path to the node or param (.) delimited
+
+        Returns:
+            the specification of the param or node
         """
-        if path.startswith("."):
-            path.strip(".")
+        path = path.strip(".")
 
         if "." in path:
             module, subpath = path.split(".", 1)
@@ -919,6 +867,68 @@ class Composable(metaclass=MetaComposable):
 
         return {"params": params, "nodes": nodes}
 
+    def get_from_path(self, path) -> Any:
+        """Get a node or param by path
+
+        Args:
+            path: the path to the node or param (.) delimited
+
+        Returns:
+            Node or param, depending on the path
+        """
+        path = path.strip(".")
+
+        if "." in path:
+            module, subpath = path.split(".", 1)
+            return getattr(self, module).get_from_path(subpath)
+
+        return getattr(self, path)
+
+    def is_compatible(self, path, obj) -> bool:
+        """Check if the interface of a sample is compatible with the declared interface
+
+        Args:
+            path: the path to the node or param (.) delimited
+            obj: the class or object to be checked
+
+        Returns:
+            True if compatible, False otherwise
+        """
+        specs = self.specs(path)
+        func = obj
+        if isinstance(obj, Composable):
+            func = obj.run
+        elif isinstance(obj, type) and issubclass(obj, Composable):
+            func = obj.run
+
+        if specs["type"] == "param":
+            return isinstance(obj, specs["type"])
+        elif specs["type"] == "node":
+            reference_input = specs["input"]
+            reference_output = specs["output"]
+            target_input = input_signature(func)
+            target_output = output_signature(func)
+
+            ok_input, ok_output = False, False
+            if reference_input == empty:
+                ok_input = True
+            else:
+                for name, annot in reference_input.items():
+                    if name not in target_input:
+                        ok_input = False
+                        break
+                    ok_input = is_compatible_with(target_input[name], annot)
+                    if not ok_input:
+                        break
+
+            if reference_output == empty:
+                ok_output = True
+            else:
+                ok_output = is_compatible_with(target_output, reference_output)
+            return ok_input and ok_output
+
+        raise ValueError(f"{path} is not a param or a node")
+
 
 class ComposableProxy(Composable):
     """Wrap an object to be a step.
@@ -949,7 +959,7 @@ class ComposableProxy(Composable):
             return callable_obj(*args, **kwargs)
 
         if middlware_cfg := getattr(self, "Middleware"):
-            from .utils import import_dotted_string
+            from .utils.paths import import_dotted_string
 
             next_call = wrapper
             for cls_name in reversed(middlware_cfg.middleware):

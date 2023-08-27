@@ -29,7 +29,7 @@ pip install theflow
 
 (A code walk-through of this session is stored in `examples/10-minutes-quick-start.ipynb`. You can run it with Google Colab (TODO - attach the link).)
 
-Pipeline can be defined as code. You initialize all the ops in `self.initialize` and route them in `self.run`. In `self.run`, you associate each step with a name `_ff_name`, which `theflow` use to identify the edge in the flow graph.
+Pipeline can be defined as code. You initialize all the ops in `self.initialize` and route them in `self.run`.
 
 ```python
 from theflow import Composable
@@ -55,9 +55,9 @@ class MathFlow(Composable):
 
   def run(self, x):
     # Route the operations in the flow
-    y = self.increment(x, _ff_name="increment1")   # associate _ff_name
-    y = self.decrement(y, _ff_name="decrement")
-    y = self.increment(y, _ff_name="increment2")
+    y = self.increment(x)
+    y = self.decrement(y)
+    y = self.increment(y)
     return y
 
 flow = MathFlow(increment=IncrementBy(x=10), decrement=decrement_by_5)

@@ -47,7 +47,7 @@ def get_theflow_path(loc: Optional[Union[str, Path]]) -> Optional[Path]:
     return None
 
 
-def get_or_create_theflow_path(loc: Optional[str]=None) -> Path:
+def get_or_create_theflow_path(loc: Optional[str] = None) -> Path:
     """Get the theflow directory (.theflow/) or create it if not exists
 
     It travels up the directory tree until it finds the theflow directory. If not
@@ -99,16 +99,16 @@ def is_name_matched(name: str, pattern: str) -> bool:
 
     This method matches simple pattern with wildcard character "*". For example, the
     pattern "a.*.b" matches "a.c.b" but not "a.b.c.b".
-    
+
     Args:
         name: the name to check
         pattern: the pattern to match
-    
+
     Returns:
         True if the name matches the pattern, False otherwise
     """
     pattern_parts: list[str] = [re.escape(part) for part in pattern.split("*")]
-    regex_pattern: str = r'^' + r'[^.]+'.join(pattern_parts) + r'$'
+    regex_pattern: str = r"^" + r"[^.]+".join(pattern_parts) + r"$"
     return re.findall(regex_pattern, name) != []
 
 
@@ -126,7 +126,7 @@ def is_parent_of_child(parent: str, child: str) -> bool:
     Args:
         parent: the parent name
         child: the child name. The child can be a wildcard pattern
-        
+
     Returns:
         True if the parent is a parent of the child, False otherwise
     """
@@ -134,29 +134,11 @@ def is_parent_of_child(parent: str, child: str) -> bool:
     return is_name_matched(parent, pattern)
 
 
-def reindent_docstring(docin: str) -> str:
-    """Remove beginning whitespace in a docstring"""
-    if not docin:
-        return ""
-
-    whitespaces = re.findall(r"\n[ \t]+", docin)
-    if whitespaces:
-        min_whitespace = min(whitespaces)[1:]
-        lines = []
-        for line in docin.splitlines():
-            if line.startswith(min_whitespace):
-                line = line[len(min_whitespace):]
-            lines.append(line)
-        docin = "\n".join(lines).strip()
-    return docin
-
-
 if __name__ == "__main__":
     names = [
         "",
         ".main",
-        ".main.pipeline_A1"
-        ".main.pipeline_A1.pipeline_B1",
+        ".main.pipeline_A1" ".main.pipeline_A1.pipeline_B1",
         ".main.pipeline_A1.pipeline_B1.pipeline_C1",
         ".main.pipeline_A1.pipeline_B1.pipeline_C1.step_a",
         ".main.pipeline_A1.pipeline_B1.pipeline_C1.step_b",

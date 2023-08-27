@@ -84,7 +84,7 @@ class SkipComponentMiddleware(Middleware):
             )
             is False
         ):
-            from .utils import is_name_matched
+            from .utils.paths import is_name_matched
 
             if is_name_matched(_ff_name, self.obj.context.get("from", context=None)):
                 self.obj.context.set("good_to_run", True, context=self.obj._ff_prefix)
@@ -121,7 +121,7 @@ class SkipComponentMiddleware(Middleware):
             from_run.load(run_path=_ff_from_run)
 
         if _from := self.obj.context.get("from"):
-            from .utils import is_parent_of_child
+            from .utils.paths import is_parent_of_child
 
             if is_parent_of_child(self.obj._ff_name, _from):
                 self.obj.context.set("good_to_run", False, context=self.obj._ff_name)

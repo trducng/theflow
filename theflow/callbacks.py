@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from theflow.base import Composable
-from .utils import get_or_create_theflow_path
+from .utils.paths import get_or_create_theflow_path
 
 
 def run_id__timestamp(obj: Composable) -> str:

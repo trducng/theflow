@@ -4,7 +4,7 @@ import yaml
 
 if TYPE_CHECKING:
     from .base import Composable
-from .utils import import_dotted_string
+from .utils.paths import import_dotted_string
 
 
 DEFAULT_CONFIG = {

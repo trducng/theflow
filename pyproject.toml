@@ -3,14 +3,17 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-version = "0.2.1"
+version = "0.2.2"
 name = "theflow"
 authors = [{ name = "trducng", email = "trungduc1992@gmail.com" }]
 description = "Manage your prompts"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
-classifiers = ["Programming Language :: Python :: 3"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Development Status :: 2 - Pre-Alpha"
+]
 dependencies = ["pyyaml"]
 
 [project.optional-dependencies]
