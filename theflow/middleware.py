@@ -10,8 +10,9 @@ logger = logging.getLogger(__name__)
 class Middleware:
     """Middleware template to work on the input and output of a node"""
 
-    def __init__(self, obj: Union["Composable", "ComposableProxy"], next_call: Callable):
-
+    def __init__(
+        self, obj: Union["Composable", "ComposableProxy"], next_call: Callable
+    ):
         from .base import Composable, ComposableProxy
 
         if obj is None:
@@ -75,10 +76,7 @@ class SkipComponentMiddleware(Middleware):
             - Check if the step name matchs the name from `to`. If so, we will run this
             step and mark good_to_run as False so that later step will be skipped.
         """
-        _ff_name = kwargs.get("_ff_name", None)
-        if _ff_name is None:
-            return self.next_call(*args, **kwargs)
-        _ff_name = f"{self.obj._ff_prefix}.{_ff_name}"
+        _ff_name = self.obj.abs_path()
 
         if (
             self.obj.context.get(
@@ -122,15 +120,11 @@ class SkipComponentMiddleware(Middleware):
             from_run = RunTracker(self.obj.context, "__from_run__")
             from_run.load(run_path=_ff_from_run)
 
-        _ff_name = kwargs.get("_ff_name", None)
-        if _ff_name is None:
-            return self.next_call(*args, **kwargs)
-
         if _from := self.obj.context.get("from"):
             from .utils import is_parent_of_child
 
-            if is_parent_of_child(_ff_name, _from):
-                self.obj.context.set("good_to_run", False, context=_ff_name)
+            if is_parent_of_child(self.obj._ff_name, _from):
+                self.obj.context.set("good_to_run", False, context=self.obj._ff_name)
 
         return self.next_call(*args, **kwargs)
 
@@ -142,15 +136,7 @@ class TrackProgressMiddleware(Middleware):
     """
 
     def run_step(self, *args, **kwargs):
-        _ff_name = kwargs.get("_ff_name", None)
-        if _ff_name is None:
-            return self.next_call(*args, **kwargs)
-
-        _ff_name = (
-            _ff_name
-            if self.obj._ff_prefix is None
-            else f"{self.obj._ff_prefix}.{_ff_name}"
-        )
+        _ff_name = self.obj.abs_path()
 
         _input = {"args": args, "kwargs": kwargs}
         _output = self.next_call(*args, **kwargs)
@@ -159,15 +145,15 @@ class TrackProgressMiddleware(Middleware):
         return _output
 
     def run_pipeline(self, *args, **kwargs):
-        if self.obj._ff_prefix is None:  
+        if not self.obj._ff_prefix:
             self.obj.last_run.config = (
                 self.obj._ff_config.export()
             )  # pyright: reportOptionalMemberAccess=false
 
         output = self.run_step(*args, **kwargs)
-        if self.obj._ff_prefix is None:
+        if not self.obj._ff_prefix:
             store_result = self.obj.config.store_result
-            if store_result is not None and isinstance(self.obj._ff_run_id, str):
+            if store_result is not None and self.obj._ff_run_id:
                 self.obj.last_run.persist(str(store_result), self.obj._ff_run_id)
 
         return output

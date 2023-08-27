@@ -148,9 +148,9 @@ class RunTracker:
         with (path / "progress.pkl").open("wb") as fo:
             pickle.dump(progress, fo)
         with (path / "input.pkl").open("wb") as fo:
-            pickle.dump(progress[""]["input"], fo)
+            pickle.dump(progress["."]["input"], fo)
         with (path / "output.pkl").open("wb") as fo:
-            pickle.dump(progress[""]["output"], fo)
+            pickle.dump(progress["."]["output"], fo)
         with (path / "config.yaml").open("w") as fo:
             yaml.safe_dump(self._config, fo)
 
@@ -162,7 +162,7 @@ class RunTracker:
         """
         return self._context.get("run_id", context=None)
 
-    def load(self, run_path: str):
+    def load(self, run_path: str|Path):
         """Load a run
 
         Args:

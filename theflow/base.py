@@ -1,6 +1,7 @@
 """Define base pipeline functionalities that underly both pipeline and step"""
 import inspect
 import logging
+from abc import abstractmethod
 from copy import deepcopy
 from collections import defaultdict
 from functools import lru_cache
@@ -348,6 +349,8 @@ class Node:
 
             obj.__ff_nodes__[self._name] = value
 
+        obj._prepare_child(obj.__ff_nodes__[self._name], self._name)
+
         return obj.__ff_nodes__[self._name]
 
     def _calculate_from_depends_on(
@@ -517,7 +520,13 @@ class Composable(metaclass=MetaComposable):
         self._ff_nodes: list[str] = []
         self._ff_config: Optional[Config] = None
         self._ff_context: Optional[BaseContext] = None
-        self._ff_prefix: Optional[str] = None  # only root node has prefix as None
+
+        # temporary variable, only available during run
+        self._ff_in_run: bool = False  # whether the pipeline is in the run process
+        self._ff_prefix: str = ""  # only root node has prefix as empty ""
+        self._ff_name: str = ""  # only root node has name as empty ""
+        self._ff_run_id: str = ""  # only available for root
+        self._ff_childs_called: dict = defaultdict(int)  # only available for root
 
         # collect
         self._ff_params, self._ff_nodes = self._collect_registered_params_and_nodes()
@@ -529,7 +538,6 @@ class Composable(metaclass=MetaComposable):
             self.set(params)
         self._ff_init_called = True
 
-        self._ff_run_id: Optional[str] = None  # only available for root pipeline
         self._middleware = None
         if middlware_cfg := getattr(self, "Middleware"):
             from .utils import import_dotted_string
@@ -544,35 +552,54 @@ class Composable(metaclass=MetaComposable):
             # TODO: this work better if we formulate config and context as independent
             self._initialize()
 
+    def abs_path(self) -> str:
+        """Get the node absolute path
+
+        Path to node is similar to path to folder:
+            .: root node
+            .a: to node a
+            .a.a1.a2: travel from root node to node a2
+
+        Returns:
+            str: absolute path of the node
+        """
+        if self._ff_prefix == ".":
+            return f".{self._ff_name}"
+
+        return f"{self._ff_prefix}.{self._ff_name}"
+
     def _run(self, *args, **kwargs):
         """Subclass to handle pre- and post- run"""
-        kwargs.pop("_ff_name", None)
+        # TODO: can remove self._run
         return self.run(*args, **kwargs)
 
     def _initialize_nodes(self):
         pass
 
+    @abstractmethod
     def run(self, *args, **kwargs):  # type: ignore
         raise NotImplementedError(f"Please implement {self.__class__.__name__}.run")
 
     def __call__(self, *args, **kwargs):
         """Run the flow, accepting extra parameters for routing purpose"""
+        self._ff_in_run = True
+
         if not hasattr(self, "_ff_initializing"):
             self._initialize()
 
         if _ff_run_kwargs := kwargs.pop("_ff_run_kwargs", {}):
+            # TODO: another option is to communicate through context,
+            # because this is run-time parameter, it will not be persisted in the
+            # child nodes.
             self.set_run(_ff_run_kwargs, temp=True)
 
-        _ff_name = self._handle_step_name(kwargs.get("_ff_name", ""))
-        if self._ff_prefix is None:  # only root node has prefix as None
+        if not self._ff_prefix:  # only root node has prefix as None
             # administrative setup
             self._ff_run_id = self.config.run_id
             self.context.clear_all()
             self.context.set("run_id", self._ff_run_id, context=None)
-            kwargs["_ff_name"] = _ff_name
 
-        if _ff_name is not None:
-            self.context.create_local_context(context=_ff_name, exist_ok=True)
+        self.context.create_local_context(context=self.abs_path(), exist_ok=True)
 
         if self.__ff_run_kwargs__:
             kwargs.update(self.__ff_run_kwargs__)
@@ -580,12 +607,22 @@ class Composable(metaclass=MetaComposable):
         if self.__ff_run_temp_kwargs__:
             kwargs.update(self.__ff_run_temp_kwargs__)
 
-        output = (
-            self._middleware(*args, **kwargs)
-            if self._middleware
-            else self._run(*args, **kwargs)
-        )
-        self.__ff_run_temp_kwargs__.clear()
+        try:
+            output = (
+                self._middleware(*args, **kwargs)
+                if self._middleware
+                else self._run(*args, **kwargs)
+            )
+        except Exception as e:
+            raise e from None
+        finally:
+            self.__ff_run_temp_kwargs__.clear()
+            self._ff_in_run = False
+            self._ff_prefix = ""
+            self._ff_name = ""
+            self._ff_run_id = ""
+            self._ff_childs_called = defaultdict(int)
+
         return output
 
     def __repr__(self):
@@ -597,9 +634,7 @@ class Composable(metaclass=MetaComposable):
     def __str__(self):
         return f"{self.__class__.__name__} (nodes: {self._ff_nodes})"
 
-    def _get_context(self) -> BaseContext:
-        if self._ff_context is None:
-            raise ValueError("Context is not set")
+    def _get_context(self) -> BaseContext | None:
         return self._ff_context
 
     def _set_context(self, context: BaseContext) -> None:
@@ -656,6 +691,7 @@ class Composable(metaclass=MetaComposable):
         self._ff_initializing = True
         self._initialize_nodes()
         for node in self._ff_nodes:
+            # TODO: maybe put all of these logics in _prepare_child
             node_obj = getattr(self, node, None)
             if node_obj is not None:
                 node_obj.config = self._ff_config
@@ -698,39 +734,16 @@ class Composable(metaclass=MetaComposable):
 
         return value
 
-    def _handle_step_name(self, _ff_name: str = "") -> str:
-        """Combine the prefix and the step name, and pass it to the child steps.
-
-        In case the step name is empty (default ""), the class name will be used
-        instead. In the future, the step name can be dynamically constructed, based
-        on:
-            - the number of input args, the type of each of input args
-            - the number of kwargs, the name of the kwargs, the type of each of the kwargs
-            - whether a similar step name exists in the context
-
-        Args:
-            _ff_name: the step name passed in from __call__ argument
-
-        Returns:
-            the processed step name
-        """
-        if not isinstance(_ff_name, str):
-            raise TypeError(f"_ff_name must be str, got {type(_ff_name)}")
-
-        if self._ff_prefix is not None:
-            if "." in _ff_name:
-                raise AttributeError("_ff_name cannot contain `.`")
-            if "*" in _ff_name:
-                raise AttributeError("_ff_name cannot contain `*`")
-            if not _ff_name:
-                _ff_name = self.__class__.__name__
-
-            _ff_name = ".".join([self._ff_prefix, _ff_name])
-
-        for node in self._ff_nodes:
-            setattr(getattr(self, node), "_ff_prefix", _ff_name)
-
-        return _ff_name
+    def _prepare_child(self, child: "Composable", name: str):
+        if self._ff_in_run:
+            child._ff_prefix = f"{self._ff_prefix}.{self._ff_name}"
+            child._ff_name = (
+                name
+                if name not in self._ff_childs_called
+                else f"{name}[{self._ff_childs_called[name]}]"
+            )
+            self._ff_childs_called[name] += 1
+            child.context = self.context
 
     @classmethod
     def visualize(cls):
@@ -931,7 +944,8 @@ class ComposableProxy(Composable):
 
     def _create_callable(self, callable_obj):
         def wrapper(*args, **kwargs):
-            kwargs.pop("_ff_name", None)
+            # TODO: after remove _ff_name from kwargs, we might be able to remove this
+            # wrapper
             return callable_obj(*args, **kwargs)
 
         if middlware_cfg := getattr(self, "Middleware"):
