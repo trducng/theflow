@@ -5,13 +5,21 @@ Consider these as experimental due to very naive implementation that for sure ca
 handle uncommon cases.
 """
 import inspect
-from typing import Any, get_args, get_origin, _UnionGenericAlias, Callable
+from typing import Any, get_args, get_origin, _GenericAlias, Callable, Union
+
+
+def is_union_type(annotation) -> bool:
+    """Check if the annotation is a Union type"""
+    return (
+        annotation is Union or
+        (isinstance(annotation, _GenericAlias) and annotation.__origin__ is Union)
+    )
 
 
 def expand_types(annotation) -> list:
     """Expand the type from source to target"""
     result = []
-    if isinstance(annotation, _UnionGenericAlias):
+    if is_union_type(annotation):
         childs = get_args(annotation)
         for child in childs:
             result += expand_types(child)

@@ -6,12 +6,14 @@ from functools import lru_cache
 from typing import (
     Any,
     Callable,
+    Dict,
     Optional,
-    _UnionGenericAlias,
     ForwardRef,
     Type,
     Union,
     Generic,
+    List,
+    Tuple,
     TypeVar,
     cast,
     TYPE_CHECKING,
@@ -24,7 +26,12 @@ from .context import BaseContext, SimpleMemoryContext
 from .exceptions import InvalidNodeDefinition, InvalidParamDefinition
 from .visualization import trace_pipelne_run
 from .utils.pretties import reindent_docstring, unflatten_dict
-from .utils.typings import is_compatible_with, input_signature, output_signature
+from .utils.typings import (
+    is_compatible_with,
+    input_signature,
+    output_signature,
+    is_union_type,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -35,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 def contains_composable_in_annotation(annotation) -> bool:
     """Return True if the annotation contains Composable"""
-    if isinstance(annotation, _UnionGenericAlias):
+    if is_union_type(annotation):
         return any(contains_composable_in_annotation(a) for a in annotation.__args__)
     if isinstance(annotation, ForwardRef):
         annotation = annotation._evaluate(globals(), locals(), frozenset())
@@ -77,7 +84,7 @@ class Param(Generic[ParamAttribute]):
         help: str = "",
         refresh_on_set: bool = False,
         strict_type: bool = False,
-        depends_on: Optional[Union[str, list[str]]] = None,
+        depends_on: Optional[Union[str, List[str]]] = None,
         no_cache: bool = False,
     ):
         self._default: ParamAttribute = cast(ParamAttribute, default)
@@ -90,7 +97,7 @@ class Param(Generic[ParamAttribute]):
 
         if isinstance(depends_on, str):
             depends_on = [depends_on]
-        self._depends_on: Optional[list[str]] = depends_on
+        self._depends_on: Optional[List[str]] = depends_on
 
     def _validate_args(self):
         """Validate the __init__ args"""
@@ -232,16 +239,16 @@ class Node:
     def __init__(
         self,
         default: Union[Type["empty"], Type["Composable"]] = empty,
-        default_kwargs: Optional[dict[str, Any]] = None,
+        default_kwargs: Optional[Dict[str, Any]] = None,
         default_callback: Optional[
             Callable[
                 [Optional["Composable"], Optional[Type["Composable"]]], "Composable"
             ]
         ] = None,
-        depends_on: Optional[Union[str, list[str]]] = None,
+        depends_on: Optional[Union[str, List[str]]] = None,
         no_cache: bool = False,
         help: str = "",
-        input: Union[Type["empty"], dict[str, Any]] = empty,
+        input: Union[Type["empty"], Dict[str, Any]] = empty,
         output: Any = empty,
     ):
         self._default = cast("Composable", default)
@@ -250,14 +257,14 @@ class Node:
         self._help = help
         if isinstance(depends_on, str):
             depends_on = [depends_on]
-        self._depends_on: Optional[list[str]] = depends_on
+        self._depends_on: Optional[List[str]] = depends_on
         self._no_cache = no_cache
         if self._depends_on and self._no_cache:
             raise ValueError(
                 f"depends_on and no_cache cannot be both set: {self._name}"
             )
 
-        self._input: Union[Type["empty"], dict[str, Any]] = input
+        self._input: Union[Type["empty"], Dict[str, Any]] = input
         self._output: Any = output
 
         has_run_method = callable(getattr(default, "run", None))
@@ -457,13 +464,13 @@ class Composable(metaclass=MetaComposable):
     ]
 
     def __init__(self, _params: Optional[dict] = None, /, **params):
-        self.__ff_params__: dict[str, Any] = {}
-        self.__ff_nodes__: dict[str, Composable] = {}
-        self.__ff_depends__: dict[str, dict[str, int]] = defaultdict(dict)
-        self.__ff_run_kwargs__: dict[str, Any] = {}
-        self.__ff_run_temp_kwargs__: dict[str, Any] = {}
-        self._ff_params: list[str] = []
-        self._ff_nodes: list[str] = []
+        self.__ff_params__: Dict[str, Any] = {}
+        self.__ff_nodes__: Dict[str, Composable] = {}
+        self.__ff_depends__: Dict[str, Dict[str, int]] = defaultdict(dict)
+        self.__ff_run_kwargs__: Dict[str, Any] = {}
+        self.__ff_run_temp_kwargs__: Dict[str, Any] = {}
+        self._ff_params: List[str] = []
+        self._ff_nodes: List[str] = []
         self._ff_config: Optional[Config] = None
         self._ff_context: Optional[BaseContext] = None
 
@@ -580,7 +587,7 @@ class Composable(metaclass=MetaComposable):
     def __str__(self):
         return f"{self.__class__.__name__} (nodes: {self._ff_nodes})"
 
-    def _get_context(self) -> BaseContext | None:
+    def _get_context(self) -> Optional[BaseContext]:
         return self._ff_context
 
     def _set_context(self, context: BaseContext) -> None:
@@ -595,11 +602,11 @@ class Composable(metaclass=MetaComposable):
     context = property(_get_context, _set_context, _del_context)
 
     @property
-    def nodes(self) -> list[str]:
+    def nodes(self) -> List[str]:
         return self._ff_nodes
 
     @property
-    def params(self) -> dict[str, Any]:
+    def params(self) -> Dict[str, Any]:
         params = {}
         for key in self._ff_params:
             try:
@@ -645,7 +652,7 @@ class Composable(metaclass=MetaComposable):
         self._ff_initializing = False
 
     @classmethod
-    def _collect_registered_params_and_nodes(cls) -> tuple[list[str], list[str]]:
+    def _collect_registered_params_and_nodes(cls) -> Tuple[List[str], List[str]]:
         """Return the list of all params and nodes registered in the Composable
 
         Returns:
@@ -664,7 +671,7 @@ class Composable(metaclass=MetaComposable):
 
     @classmethod
     @lru_cache
-    def _protected_keywords(cls) -> dict[str, type]:
+    def _protected_keywords(cls) -> Dict[str, type]:
         """Return the protected keywords and the class that defines each of them"""
         keywords = {}
         for each_cls in cls.mro():
@@ -801,7 +808,7 @@ class Composable(metaclass=MetaComposable):
             "nodes": nodes,
         }
 
-    def describe(self, original=False, to: Optional["str|Path"] = None) -> dict:
+    def describe(self, original=False, to: Optional[Union[str, "Path"]] = None) -> dict:
         """Describe the pipeline, along with all the nodes and their parameters
 
         Args:
@@ -841,7 +848,7 @@ class Composable(metaclass=MetaComposable):
 
         return definition.to_dict()
 
-    def missing(self) -> dict[str, list[str]]:
+    def missing(self) -> Dict[str, List[str]]:
         """Return the list of missing params and nodes"""
         params, nodes = [], []
         for attr in self._ff_params:

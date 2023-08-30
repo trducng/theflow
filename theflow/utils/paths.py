@@ -1,7 +1,7 @@
 import importlib
 import re
 from pathlib import Path
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 
 THEFLOW_DIR = ".theflow"
@@ -107,7 +107,7 @@ def is_name_matched(name: str, pattern: str) -> bool:
     Returns:
         True if the name matches the pattern, False otherwise
     """
-    pattern_parts: list[str] = [re.escape(part) for part in pattern.split("*")]
+    pattern_parts: List[str] = [re.escape(part) for part in pattern.split("*")]
     regex_pattern: str = r"^" + r"[^.]+".join(pattern_parts) + r"$"
     return re.findall(regex_pattern, name) != []
 

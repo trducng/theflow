@@ -119,7 +119,6 @@ You can modify the step inside the yaml file, and `theflow` can run the pipeline
 - Dynamically create reproducible config
 - Support pipeline branching and merging
 - Support single process or multi-processing pipeline running
-- Allow debugging
 - Can synchronize changes in the workflow, allowing logs from different run to be compatible with each other
 - Compare different runs
   - Same cache directory

@@ -1,7 +1,7 @@
 import pickle
 import shutil
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import yaml
 
@@ -162,7 +162,7 @@ class RunTracker:
         """
         return self._context.get("run_id", context=None)
 
-    def load(self, run_path: str|Path):
+    def load(self, run_path: Union[str, Path]):
         """Load a run
 
         Args:
