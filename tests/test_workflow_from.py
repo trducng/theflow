@@ -8,7 +8,7 @@ from theflow.base import Composable
 class IncrementBy(Composable):
     x: int
 
-    def __call__(self, y):
+    def run(self, y):
         return self.x + y
 
 
@@ -22,9 +22,9 @@ class SequentialPipeline(Composable):
         run_id = "test_workflow_from"
 
     def run(self, y):
-        y = self.step1(y, _ff_name="step1")
-        y = self.step2(y, _ff_name="step2")
-        y = self.step3(y, _ff_name="step3")
+        y = self.step1(y)
+        y = self.step2(y)
+        y = self.step3(y)
 
         return y
 

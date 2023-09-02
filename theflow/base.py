@@ -1,4 +1,3 @@
-import inspect
 import logging
 from abc import abstractmethod
 from collections import defaultdict
@@ -16,15 +15,13 @@ from typing import (
     Tuple,
     TypeVar,
     cast,
-    TYPE_CHECKING,
 )
-
-import yaml
 
 from .config import Config, ConfigProperty
 from .context import BaseContext, SimpleMemoryContext
 from .exceptions import InvalidNodeDefinition, InvalidParamDefinition
 from .visualization import trace_pipelne_run
+from .utils.modules import import_dotted_string, serialize
 from .utils.pretties import reindent_docstring, unflatten_dict
 from .utils.typings import (
     is_compatible_with,
@@ -32,9 +29,6 @@ from .utils.typings import (
     output_signature,
     is_union_type,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 logger = logging.getLogger(__name__)
@@ -232,6 +226,21 @@ class Param(Generic[ParamAttribute]):
             "no_cache": self._no_cache,
         }
 
+    def __persist_flow__(self):
+        """Return the state in a way that can be initiated"""
+        type_ = f"{self.__module__}.{self.__class__.__qualname__}"
+        export: dict = {"__type__": type_}
+
+        for key, value in self.to_dict().items():
+            try:
+                serialized = serialize(value)
+            except Exception as e:
+                logger.warn(f"Error exporting {type_}.{key}: {e}")
+                serialized = serialize(empty)
+            export[key] = serialized
+
+        return export
+
 
 class Node:
     """Control the behavior of a node in a Composable"""
@@ -380,6 +389,21 @@ class Node:
             "output": self._output,
         }
 
+    def __persist_flow__(self):
+        """Return the state in a way that can be initiated"""
+        type_ = f"{self.__module__}.{self.__class__.__qualname__}"
+        export: dict = {"__type__": type_}
+
+        for key, value in self.to_dict().items():
+            try:
+                serialized = serialize(value)
+            except Exception as e:
+                logger.warn(f"Error exporting {type_}.{key}: {e}")
+                serialized = serialize(empty)
+            export[key] = serialized
+
+        return export
+
 
 class MetaComposable(type):
     def __new__(cls, clsname, bases, attrs):
@@ -493,11 +517,10 @@ class Composable(metaclass=MetaComposable):
 
         self._middleware = None
         if middlware_cfg := getattr(self, "Middleware"):
-            from .utils.paths import import_dotted_string
-
             next_call = self._run
             for cls_name in reversed(middlware_cfg.middleware):
-                cls = import_dotted_string(cls_name)
+                # TODO: handle safe import
+                cls = import_dotted_string(cls_name, safe=False)
                 next_call = cls(obj=self, next_call=next_call)
             self._middleware = next_call
 
@@ -756,29 +779,24 @@ class Composable(metaclass=MetaComposable):
                     self.__ff_run_kwargs__[name] = value
 
     @classmethod
-    def _describe_cls(cls) -> dict:
-        """Describe the pipeline fully, along with all the nodes and their parameters"""
+    def describe(cls) -> dict:
+        """Describe the flow
+
+        TODO: export the route of the flow as well
+        """
         params, nodes = {}, {}
 
         for each_cls in cls.mro():
             for attr, attr_value in each_cls.__dict__.items():
                 if isinstance(attr_value, Node) and attr not in nodes:
-                    if attr_value._depends_on:
-                        continue
-                    value = None
+                    value = attr_value.__persist_flow__()
                     if isinstance(attr_value._default, type) and issubclass(
                         attr_value._default, Composable
                     ):
-                        value = attr_value._default._describe_cls()
+                        value["default"] = attr_value._default.describe()
                     nodes[attr] = value
                 elif isinstance(attr_value, Param) and attr not in params:
-                    if attr_value._depends_on:
-                        continue
-                    try:
-                        value = getattr(cls, attr)
-                    except:
-                        value = None
-                    params[attr] = value
+                    params[attr] = attr_value.__persist_flow__()
 
         return {
             "type": f"{cls.__module__}.{cls.__qualname__}",
@@ -786,46 +804,37 @@ class Composable(metaclass=MetaComposable):
             "nodes": nodes,
         }
 
-    def _describe_inst(self) -> dict:
-        """Describe the pipeline as instance method"""
+    def dump(self, ignore_depends: bool = True) -> dict:
+        """Export the flow to a dictionary
+
+        Args:
+            ignore_depends: whether to ignore params and nodes that depend on others
+        """
         nodes = {}
         for node in self._ff_nodes:
             try:
                 node_obj: Composable = getattr(self, node)
-                nodes[node] = node_obj._describe_inst()
+                if self.specs(node).get("depends_on", []) and ignore_depends:
+                    continue
+                nodes[node] = node_obj.dump(ignore_depends=ignore_depends)
             except:
                 nodes[node] = None
 
         params = {}
         for name, value in self.params.items():
-            if inspect.isfunction(value):
-                value = f"{value.__module__}.{value.__qualname__}"
-            params[name] = value
+            if self.specs(name).get("depends_on", []) and ignore_depends:
+                continue
+            try:
+                params[name] = serialize(value)
+            except ValueError as e:
+                logger.warn(e)
+                continue
 
         return {
             "type": f"{self.__module__}.{self.__class__.__qualname__}",
             "params": params,
             "nodes": nodes,
         }
-
-    def describe(self, original=False, to: Optional[Union[str, "Path"]] = None) -> dict:
-        """Describe the pipeline, along with all the nodes and their parameters
-
-        Args:
-            original: if True, return the original description, otherwise return the
-                description of the current state
-            to: path to save the description
-        """
-        if original:
-            info = self._describe_cls()
-        else:
-            info = self._describe_inst()
-
-        if to:
-            with open(to, "w") as fo:
-                yaml.dump(info, fo, sort_keys=False)
-
-        return info
 
     def specs(self, path: str) -> dict:
         """Get specification about a param or a node
@@ -936,6 +945,29 @@ class Composable(metaclass=MetaComposable):
 
         raise ValueError(f"{path} is not a param or a node")
 
+    def __persist_flow__(self) -> dict:
+        """Represent the flow in a JSON-serializable dictionary, that can be constructed"""
+        export: dict = {
+            "__type__": f"{self.__module__}.{self.__class__.__qualname__}",
+        }
+
+        for name, value in self.params.items():
+            if self.specs(name).get("depends_on", []):
+                continue
+            try:
+                export[name] = serialize(value)
+            except ValueError as e:
+                logger.warn(e)
+                continue
+
+        for name in self._ff_nodes:
+            if self.specs(name).get("depends_on", []):
+                continue
+            node = getattr(self, name).__persist_flow__()
+            export[name] = node
+
+        return export
+
 
 class ComposableProxy(Composable):
     """Wrap an object to be a step.
@@ -966,8 +998,6 @@ class ComposableProxy(Composable):
             return callable_obj(*args, **kwargs)
 
         if middlware_cfg := getattr(self, "Middleware"):
-            from .utils.paths import import_dotted_string
-
             next_call = wrapper
             for cls_name in reversed(middlware_cfg.middleware):
                 cls = import_dotted_string(cls_name)

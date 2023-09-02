@@ -111,7 +111,7 @@ class RunTracker:
         """
         return self._context.get(context=self._progress).keys()
 
-    def input(self, name: str = "") -> Any:
+    def input(self, name: str = ".") -> Any:
         """Get the input of a pipeline
 
         Args:
@@ -122,7 +122,7 @@ class RunTracker:
         """
         return self.logs(name=name)["input"]
 
-    def output(self, name: str = "") -> Any:
+    def output(self, name: str = ".") -> Any:
         """Get the output of a pipeline
 
         Args:

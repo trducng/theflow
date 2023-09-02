@@ -1,4 +1,3 @@
-import importlib
 import re
 from pathlib import Path
 from typing import List, Optional, Union
@@ -79,21 +78,6 @@ def get_or_create_theflow_path(loc: Optional[str] = None) -> Path:
     return flow_path
 
 
-def import_dotted_string(dotted_string):
-    """Import a dotted string
-
-    Args:
-        dotted_string: the dotted string to import
-
-    Returns:
-        the imported object
-    """
-    # TODO: cached import
-    module_name, obj_name = dotted_string.rsplit(".", 1)
-    module = importlib.import_module(module_name)
-    return getattr(module, obj_name)
-
-
 def is_name_matched(name: str, pattern: str) -> bool:
     """Check if a name matches a pattern
 
@@ -130,6 +114,7 @@ def is_parent_of_child(parent: str, child: str) -> bool:
     Returns:
         True if the parent is a parent of the child, False otherwise
     """
+    parent, child = parent.strip("."), child.strip(".")
     pattern = ".".join(child.split(".")[:-1])
     return is_name_matched(parent, pattern)
 

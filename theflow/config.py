@@ -4,7 +4,7 @@ import yaml
 
 if TYPE_CHECKING:
     from .base import Composable
-from .utils.paths import import_dotted_string
+from .utils.modules import import_dotted_string
 
 
 DEFAULT_CONFIG = {
@@ -104,7 +104,8 @@ class Config:
             ):
                 # parse to the callback function
                 dotted_string = value[2:-2].strip()
-                value = import_dotted_string(dotted_string)
+                # TODO: handle safe import
+                value = import_dotted_string(dotted_string, safe=False)
 
             setattr(self, key, value)
 

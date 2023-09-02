@@ -124,7 +124,7 @@ class SkipComponentMiddleware(Middleware):
             from .utils.paths import is_parent_of_child
 
             if is_parent_of_child(self.obj._ff_name, _from):
-                self.obj.context.set("good_to_run", False, context=self.obj._ff_name)
+                self.obj.context.set("good_to_run", False, context=self.obj.abs_path())
 
         return self.next_call(*args, **kwargs)
 
@@ -145,13 +145,13 @@ class TrackProgressMiddleware(Middleware):
         return _output
 
     def run_pipeline(self, *args, **kwargs):
-        if not self.obj._ff_prefix:
+        if self.obj.abs_path() == ".":
             self.obj.last_run.config = (
                 self.obj._ff_config.export()
             )  # pyright: reportOptionalMemberAccess=false
 
         output = self.run_step(*args, **kwargs)
-        if not self.obj._ff_prefix:
+        if self.obj.abs_path() == ".":
             store_result = self.obj.config.store_result
             if store_result is not None and self.obj._ff_run_id:
                 self.obj.last_run.persist(str(store_result), self.obj._ff_run_id)
