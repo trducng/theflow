@@ -12,7 +12,6 @@ class SimpleMemoryContext(BaseContext):
 
     The object is process-safe and can be used in multi-processing environment.
     """
-
     def __init__(self):
         self._msg_store = {}
         self._lock = None  # if not None, then _msg_store is a DictProxy
@@ -25,7 +24,7 @@ class SimpleMemoryContext(BaseContext):
 
         Args:
             context: name of the context
-        
+
         Returns:
             name of the context
         """

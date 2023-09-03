@@ -17,11 +17,12 @@ from typing import (
     cast,
 )
 
+from . import settings
 from .config import Config, ConfigProperty
-from .context import BaseContext, SimpleMemoryContext
+from .context import BaseContext
 from .exceptions import InvalidNodeDefinition, InvalidParamDefinition
 from .visualization import trace_pipelne_run
-from .utils.modules import import_dotted_string, serialize
+from .utils.modules import import_dotted_string, serialize, init_object
 from .utils.pretties import reindent_docstring, unflatten_dict
 from .utils.typings import (
     is_compatible_with,
@@ -492,18 +493,10 @@ class Composable(metaclass=MetaComposable):
         self.__ff_nodes__: Dict[str, Composable] = {}
         self.__ff_depends__: Dict[str, Dict[str, int]] = defaultdict(dict)
         self.__ff_run_kwargs__: Dict[str, Any] = {}
-        self.__ff_run_temp_kwargs__: Dict[str, Any] = {}
         self._ff_params: List[str] = []
         self._ff_nodes: List[str] = []
         self._ff_config: Optional[Config] = None
         self._ff_context: Optional[BaseContext] = None
-
-        # temporary variable, only available during run
-        self._ff_in_run: bool = False  # whether the pipeline is in the run process
-        self._ff_prefix: str = ""  # only root node has prefix as empty ""
-        self._ff_name: str = ""  # only root node has name as empty ""
-        self._ff_run_id: str = ""  # only available for root
-        self._ff_childs_called: dict = defaultdict(int)  # only available for root
 
         # collect
         self._ff_params, self._ff_nodes = self._collect_registered_params_and_nodes()
@@ -528,8 +521,23 @@ class Composable(metaclass=MetaComposable):
             # TODO: this work better if we formulate config and context as independent
             self._initialize()
 
-    def abs_path(self) -> str:
-        """Get the node absolute path
+        # Initialize temporary execution variables
+        self._variablex()
+
+    def _variablex(self):
+        """Set temporary variables, only available during execution. Refresh when execution finishes"""
+        self.__ff_run_temp_kwargs__: Dict[str, Any] = {}  # temp run kwargs
+        self._ff_in_run: bool = False  # whether the pipeline is in the run process
+        self._ff_prefix: str = ""  # only root node has prefix as empty ""
+        self._ff_name: str = ""  # only root node has name as empty ""
+        self._ff_run_id: str = ""  # the current run id
+        self._ff_flow_name: str = ""  # the run name
+        self._ff_childs_called: dict = defaultdict(int)  # only available for root
+
+    def abs_pathx(self) -> str:
+        """Get the node absolute path in execution flow.
+
+        Note: only available during execution
 
         Path to node is similar to path to folder:
             .: root node
@@ -543,6 +551,26 @@ class Composable(metaclass=MetaComposable):
             return f".{self._ff_name}"
 
         return f"{self._ff_prefix}.{self._ff_name}"
+
+    def namex(self) -> str:
+        """Name of the execution flow"""
+        return self._ff_flow_name
+
+    def idx(self) -> str:
+        """Return execution id"""
+        return self._ff_run_id
+
+    def qualidx(self) -> str:
+        """Return the qualified execution ids for this node"""
+        return f"{self.namex()}|{self.idx()}|{self.abs_pathx()}"
+
+    def parent_qualidx(self) -> str:
+        """Return the qualified execution ids for the parent node"""
+        return f"{self.namex()}|{self.idx()}|{self._ff_prefix}"
+
+    def flow_qualidx(self):
+        """Return the qualified execution flow id"""
+        return f"{self.namex()}|{self.idx()}"
 
     def _run(self, *args, **kwargs):
         """Subclass to handle pre- and post- run"""
@@ -569,13 +597,13 @@ class Composable(metaclass=MetaComposable):
             # child nodes.
             self.set_run(_ff_run_kwargs, temp=True)
 
-        if not self._ff_prefix:  # only root node has prefix as None
+        if not self._ff_prefix:  # only root node has prefix as empty
             # administrative setup
             self._ff_run_id = self.config.run_id
-            self.context.clear_all()
-            self.context.set("run_id", self._ff_run_id, context=None)
+            self.context.create_local_context(context=self.flow_qualidx())
+            self.context.set("run_id", self._ff_run_id, context=self.flow_qualidx())
 
-        self.context.create_local_context(context=self.abs_path(), exist_ok=True)
+        self.context.create_local_context(context=self.qualidx(), exist_ok=True)
 
         if self.__ff_run_kwargs__:
             kwargs.update(self.__ff_run_kwargs__)
@@ -592,12 +620,7 @@ class Composable(metaclass=MetaComposable):
         except Exception as e:
             raise e from None
         finally:
-            self.__ff_run_temp_kwargs__.clear()
-            self._ff_in_run = False
-            self._ff_prefix = ""
-            self._ff_name = ""
-            self._ff_run_id = ""
-            self._ff_childs_called = defaultdict(int)
+            self._variablex()
 
         return output
 
@@ -655,9 +678,7 @@ class Composable(metaclass=MetaComposable):
                 cls=self.__class__
             )  # TODO: this is more like setting than config
         if self._ff_context is None:
-            self._ff_context = (
-                SimpleMemoryContext()
-            )  # TODO: connect/create the context from setting
+            self._ff_context = init_object(settings.CONTEXT, safe=False)
 
         if not hasattr(self, "_ff_init_called"):
             raise RuntimeError(
@@ -671,7 +692,6 @@ class Composable(metaclass=MetaComposable):
             node_obj = getattr(self, node, None)
             if node_obj is not None:
                 node_obj.config = self._ff_config
-                node_obj.context = self._ff_context
         self._ff_initializing = False
 
     @classmethod
@@ -718,6 +738,8 @@ class Composable(metaclass=MetaComposable):
                 if name not in self._ff_childs_called
                 else f"{name}[{self._ff_childs_called[name]}]"
             )
+            child._ff_run_id = self._ff_run_id
+            child._ff_flow_name = self._ff_flow_name
             self._ff_childs_called[name] += 1
             child.context = self.context
 
@@ -1014,7 +1036,7 @@ class ComposableProxy(Composable):
         if self._ff_config is None:
             self._ff_config = Config(cls=self.__class__)
         if self._ff_context is None:
-            self._ff_context = SimpleMemoryContext()
+            self._ff_context = init_object(settings.CONTEXT, safe=False)
 
         return self._create_callable(getattr(self.ff_original_obj, "__call__"))(
             *args, **kwargs
@@ -1032,7 +1054,7 @@ class ComposableProxy(Composable):
         if self._ff_config is None:
             self._ff_config = Config(cls=self.__class__)
         if self._ff_context is None:
-            self._ff_context = SimpleMemoryContext()
+            self._ff_context = init_object(settings.CONTEXT, safe=False)
 
         attr = getattr(self.ff_original_obj, name)
         if callable(attr):

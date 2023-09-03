@@ -76,25 +76,29 @@ class SkipComponentMiddleware(Middleware):
             - Check if the step name matchs the name from `to`. If so, we will run this
             step and mark good_to_run as False so that later step will be skipped.
         """
-        _ff_name = self.obj.abs_path()
+        _ff_name = self.obj.abs_pathx()
 
         if (
             self.obj.context.get(
-                "good_to_run", default=True, context=self.obj._ff_prefix
+                "good_to_run", default=True, context=self.obj.parent_qualidx()
             )
             is False
         ):
             from .utils.paths import is_name_matched
 
-            if is_name_matched(_ff_name, self.obj.context.get("from", context=None)):
-                self.obj.context.set("good_to_run", True, context=self.obj._ff_prefix)
+            if is_name_matched(
+                _ff_name, self.obj.context.get("from", context=self.obj.flow_qualidx())
+            ):
+                self.obj.context.set(
+                    "good_to_run", True, context=self.obj.parent_qualidx()
+                )
                 logger.info(f"Run {_ff_name}. Turn good_to_run from False to True")
                 return self.next_call(*args, **kwargs)
 
             from .runs.base import RunTracker
 
             try:
-                from_run = RunTracker(self.obj.context, which_progress="__from_run__")
+                from_run = RunTracker(self.obj, which_progress="__from_run__")
                 output = from_run.output(name=_ff_name)
                 logger.info(f"Cached {_ff_name}")
                 return output
@@ -102,8 +106,10 @@ class SkipComponentMiddleware(Middleware):
                 logger.warning(f"Failed to get output from run: {e}")
                 return self.next_call(*args, **kwargs)
 
-        if self.obj.context.get("to", None) == _ff_name:
-            self.obj.context.set("good_to_run", False, context=self.obj._ff_prefix)
+        if self.obj.context.get("to", None, context=self.obj.flow_qualidx()) == _ff_name:
+            self.obj.context.set(
+                "good_to_run", False, context=self.obj.parent_qualidx()
+            )
 
         return self.next_call(*args, **kwargs)
 
@@ -111,20 +117,25 @@ class SkipComponentMiddleware(Middleware):
         """Run the middleware in the context of wrapping the pipeline"""
         # Gather the from, to and from_run from the root pipeline
         if _ff_from := kwargs.pop("_ff_from", None):
-            self.obj.context.set("from", _ff_from)
+            self.obj.context.set("from", _ff_from, context=self.obj.flow_qualidx())
         if _ff_to := kwargs.pop("_ff_to", None):
-            self.obj.context.set("to", _ff_to)
+            self.obj.context.set("to", _ff_to, context=self.obj.flow_qualidx())
         if _ff_from_run := kwargs.pop("_ff_from_run", None):
             from .runs.base import RunTracker
 
-            from_run = RunTracker(self.obj.context, "__from_run__")
+            from_run = RunTracker(self.obj, "__from_run__")
             from_run.load(run_path=_ff_from_run)
 
-        if _from := self.obj.context.get("from"):
+        try:
+            self.obj.context.get("from", context=self.obj.flow_qualidx())
+        except:
+            import pdb; pdb.set_trace()
+            print()
+        if _from := self.obj.context.get("from", context=self.obj.flow_qualidx()):
             from .utils.paths import is_parent_of_child
 
             if is_parent_of_child(self.obj._ff_name, _from):
-                self.obj.context.set("good_to_run", False, context=self.obj.abs_path())
+                self.obj.context.set("good_to_run", False, context=self.obj.qualidx())
 
         return self.next_call(*args, **kwargs)
 
@@ -136,7 +147,7 @@ class TrackProgressMiddleware(Middleware):
     """
 
     def run_step(self, *args, **kwargs):
-        _ff_name = self.obj.abs_path()
+        _ff_name = self.obj.abs_pathx()
 
         _input = {"args": args, "kwargs": kwargs}
         _output = self.next_call(*args, **kwargs)
@@ -145,13 +156,13 @@ class TrackProgressMiddleware(Middleware):
         return _output
 
     def run_pipeline(self, *args, **kwargs):
-        if self.obj.abs_path() == ".":
+        if self.obj.abs_pathx() == ".":
             self.obj.last_run.config = (
                 self.obj._ff_config.export()
             )  # pyright: reportOptionalMemberAccess=false
 
         output = self.run_step(*args, **kwargs)
-        if self.obj.abs_path() == ".":
+        if self.obj.abs_pathx() == ".":
             store_result = self.obj.config.store_result
             if store_result is not None and self.obj._ff_run_id:
                 self.obj.last_run.persist(str(store_result), self.obj._ff_run_id)
@@ -161,5 +172,5 @@ class TrackProgressMiddleware(Middleware):
     def __call__(self, *args, **kwargs):
         from .runs.base import RunTracker
 
-        self.obj.last_run = RunTracker(self.obj.context)
+        self.obj.last_run = RunTracker(self.obj)
         return super().__call__(*args, **kwargs)

@@ -5,7 +5,7 @@ different components in a pipeline. It is also used to store information
 about the pipeline itself.
 
 Any pipeline synchronization problem is essentially a communication problem. Here
-the context serves as a communication channel and faciliate the communication
+the context serves as a communication channel and faciliates the communication
 flow easily.
 
 The context should allow:
@@ -17,6 +17,12 @@ from typing import Any, Optional
 
 
 class BaseContext(abc.ABC):
+
+    @abc.abstractmethod
+    def __init__(self, *args, **kwargs):
+        """Initialize connecting to the context"""
+        ...
+
     @abc.abstractmethod
     def set(self, name: str, value: Any, context: Optional[str] = None) -> None:
         """Set a value to the context
@@ -70,5 +76,3 @@ class BaseContext(abc.ABC):
             ValueError: if the context already exists
         """
         ...
-
-

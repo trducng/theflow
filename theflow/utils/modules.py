@@ -39,6 +39,38 @@ def import_dotted_string(
     return getattr(module, obj_name)
 
 
+def init_object(
+    obj_dict: dict, /, safe=True, allowed_modules: Optional[Dict[str, Type]] = None
+):
+    """Initialize an object from a dict
+
+    Note: if the params are also serialized, use `deserialize` instead.
+
+    Args:
+        obj_dict: the dict to initialize the object from
+        safe: if True, only allowed modules can be imported
+        allowed_modules: dict of allowed modules
+
+    Returns:
+        the initialized object
+    """
+    if "__type__" not in obj_dict:
+        raise ValueError(
+            f"Cannot initialize object from dict {obj_dict}. Missing __type__ key"
+        )
+
+    cls = import_dotted_string(
+        obj_dict["__type__"], safe=safe, allowed_modules=allowed_modules
+    )
+    params: dict = {}
+    for key, val in obj_dict.items():
+        if key == "__type__":
+            continue
+        params[key] = val
+
+    return cls(**params)
+
+
 def serialize(value: Any) -> Any:
     """Serialize a value to a JSON-serializable object"""
     if isinstance(value, dict):

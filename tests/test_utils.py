@@ -4,7 +4,12 @@ import pytest
 
 from theflow import Composable
 from theflow.utils.paths import is_name_matched, is_parent_of_child
-from theflow.utils.modules import import_dotted_string, serialize, deserialize
+from theflow.utils.modules import (
+    import_dotted_string,
+    serialize,
+    deserialize,
+    init_object,
+)
 
 
 class TestNameMatching(TestCase):
@@ -111,6 +116,52 @@ class TestImportDottedString(TestCase):
             ),
             Path,
         )
+
+
+class TestInitObject(TestCase):
+    def test_construct_with_params_unsafe(self):
+        """Can construct with params"""
+        from datetime import datetime
+
+        obj_dict = {"__type__": "datetime.datetime", "year": 2020, "month": 1, "day": 1}
+        obj = init_object(obj_dict, safe=False)
+        self.assertEqual(obj, datetime(2020, 1, 1))
+
+    def test_raise_by_default(self):
+        """Raise by default since this method involve code execution"""
+        obj_dict = {"__type__": "datetime.datetime", "year": 2020, "month": 1, "day": 1}
+        with self.assertRaises(ValueError):
+            init_object(obj_dict)
+
+    def test_raise_missing_modules(self):
+        """Raise if missing modules"""
+        from pathlib import Path
+
+        obj_dict = {"__type__": "datetime.datetime", "year": 2020, "month": 1, "day": 1}
+        with self.assertRaises(ValueError):
+            init_object(obj_dict, allowed_modules={"pathlib.Path": Path})
+
+    def test_construct_with_params_safe(self):
+        """Normal behavior: construct with params in a safe manner"""
+        from datetime import datetime
+
+        obj_dict = {"__type__": "datetime.datetime", "year": 2020, "month": 1, "day": 1}
+        obj = init_object(obj_dict, allowed_modules={"datetime.datetime": datetime})
+        self.assertEqual(obj, datetime(2020, 1, 1))
+
+    def test_construct_without_params(self):
+        """Init object without params"""
+        from pathlib import Path
+
+        obj_dict = {"__type__": "pathlib.Path"}
+        obj = init_object(obj_dict, allowed_modules={"pathlib.Path": Path})
+        self.assertEqual(obj, Path())
+
+    def test_raise_without_type(self):
+        """Raise if __type__ is not specified"""
+        obj_dict = {"year": 2020, "month": 1, "day": 1}
+        with self.assertRaises(ValueError):
+            init_object(obj_dict, safe=False)
 
 
 class TestSerialize(TestCase):
