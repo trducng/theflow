@@ -2,12 +2,24 @@ import ast
 import inspect
 from collections import defaultdict
 
-
 IGNORE = (
-    ast.Call, ast.arguments, ast.arg, ast.Assign, ast.Name,
-    ast.Attribute, ast.Load, ast.keyword, ast.Constant,
-    ast.Return, ast.Dict, ast.Subscript, ast.JoinedStr, ast.If, ast.IfExp,
+    ast.Call,
+    ast.arguments,
+    ast.arg,
+    ast.Assign,
+    ast.Name,
+    ast.Attribute,
+    ast.Load,
+    ast.keyword,
+    ast.Constant,
+    ast.Return,
+    ast.Dict,
+    ast.Subscript,
+    ast.JoinedStr,
+    ast.If,
+    ast.IfExp,
 )
+
 
 def trace_pipelne_run(cls) -> list:
     """Trace the logic flow of a pipeline run
@@ -35,7 +47,7 @@ def get_ast_node_name(node) -> str:
         str: human-readable name of the ast node
     """
     if isinstance(node, ast.Attribute):
-        return "%s.%s" % (get_ast_node_name(node.value), node.attr)
+        return f"{get_ast_node_name(node.value)}.{node.attr}"
     elif isinstance(node, ast.Name):
         return node.id
     elif isinstance(node, ast.FunctionDef):
@@ -58,7 +70,6 @@ def get_ast_node_name(node) -> str:
 
 
 class PipelineRunTracer(ast.NodeVisitor):
-
     def __init__(self):
         self.logic_flow = []
         self.in_run = False
@@ -124,7 +135,7 @@ class PipelineRunTracer(ast.NodeVisitor):
         # determine function name
         node_name = get_ast_node_name(node)
         for kw in node.keywords:
-            if kw.arg == '_ff_name':
+            if kw.arg == "_ff_name":
                 node_name = get_ast_node_name(kw.value)
                 break
 
@@ -217,7 +228,11 @@ class PipelineRunTracer(ast.NodeVisitor):
         for key, value in creator2.items():
             if key in creator:
                 value1 = [value] if not isinstance(value, list) else value
-                value2 = [creator[key]] if not isinstance(creator[key], list) else creator[key]
+                value2 = (
+                    [creator[key]]
+                    if not isinstance(creator[key], list)
+                    else creator[key]
+                )
                 creator[key] = value1 + value2
             else:
                 creator[key] = value

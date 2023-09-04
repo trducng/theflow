@@ -6,14 +6,14 @@ from typing import (
     Any,
     Callable,
     Dict,
-    Optional,
     ForwardRef,
-    Type,
-    Union,
     Generic,
     List,
+    Optional,
     Tuple,
+    Type,
     TypeVar,
+    Union,
     cast,
 )
 
@@ -21,16 +21,15 @@ from . import settings
 from .config import Config, ConfigProperty
 from .context import BaseContext
 from .exceptions import InvalidNodeDefinition, InvalidParamDefinition
-from .visualization import trace_pipelne_run
-from .utils.modules import import_dotted_string, serialize, init_object
+from .utils.modules import import_dotted_string, init_object, serialize
 from .utils.pretties import reindent_docstring, unflatten_dict
 from .utils.typings import (
-    is_compatible_with,
     input_signature,
-    output_signature,
+    is_compatible_with,
     is_union_type,
+    output_signature,
 )
-
+from .visualization import trace_pipelne_run
 
 logger = logging.getLogger(__name__)
 
@@ -99,11 +98,13 @@ class Param(Generic[ParamAttribute]):
 
         if self._depends_on and not self._default_callback:
             raise InvalidParamDefinition(
-                f"Must provide `default_callback` when param has `depends_on`: {self._qual_name}"
+                "Must provide `default_callback` when param has `depends_on`: "
+                f"{self._qual_name}"
             )
         if self._depends_on and self._no_cache:
             raise InvalidParamDefinition(
-                f"Cannot set `no_cache=True` if param has `depends_on`: {self._qual_name}"
+                "Cannot set `no_cache=True` if param has `depends_on`: "
+                f"{self._qual_name}"
             )
 
     def __get__(
@@ -169,14 +170,16 @@ class Param(Generic[ParamAttribute]):
     def __set__(self, obj: "Composable", value: Any):
         if self._depends_on:
             raise ValueError(
-                f"Param {self._qual_name} depends on {self._depends_on}, cannot be set directly"
+                f"Param {self._qual_name} depends on {self._depends_on}, "
+                "cannot be set directly"
             )
 
         if self._strict_type:
             if not isinstance(value, obj.__dict__["__annotations__"][self._name]):
                 # TODO: more sophisicated type checking (e.g. handle Union, Optional...)
                 raise ValueError(
-                    f"Value {value} is not of type {type(self._default)} for parameter {self._name}"
+                    f"Value {value} is not of type {type(self._default)} "
+                    f"for parameter {self._name}"
                 )
 
         obj.__ff_params__[self._name] = value
@@ -421,7 +424,9 @@ class MetaComposable(type):
             attrs[name] = desc
 
         try:
-            obj: Type["Composable"] = super().__new__(cls, clsname, bases, attrs)  # type: ignore
+            obj: Type["Composable"] = super().__new__(
+                cls, clsname, bases, attrs  # type: ignore
+            )
         except Exception as e:
             cause = getattr(e, "__cause__", None)
             if isinstance(cause, InvalidParamDefinition):
@@ -489,6 +494,9 @@ class Composable(metaclass=MetaComposable):
     ]
 
     def __init__(self, _params: Optional[dict] = None, /, **params):
+        from .runs.base import RunTracker
+
+        self.last_run: RunTracker
         self.__ff_params__: Dict[str, Any] = {}
         self.__ff_nodes__: Dict[str, Composable] = {}
         self.__ff_depends__: Dict[str, Dict[str, int]] = defaultdict(dict)
@@ -525,7 +533,9 @@ class Composable(metaclass=MetaComposable):
         self._variablex()
 
     def _variablex(self):
-        """Set temporary variables, only available during execution. Refresh when execution finishes"""
+        """Set temporary variables, only available during execution. Refresh when
+        execution finishes
+        """
         self.__ff_run_temp_kwargs__: Dict[str, Any] = {}  # temp run kwargs
         self._ff_in_run: bool = False  # whether the pipeline is in the run process
         self._ff_prefix: str = ""  # only root node has prefix as empty ""
@@ -600,10 +610,10 @@ class Composable(metaclass=MetaComposable):
         if not self._ff_prefix:  # only root node has prefix as empty
             # administrative setup
             self._ff_run_id = self.config.run_id
-            self.context.create_local_context(context=self.flow_qualidx())
+            self.context.create_context(context=self.flow_qualidx())
             self.context.set("run_id", self._ff_run_id, context=self.flow_qualidx())
 
-        self.context.create_local_context(context=self.qualidx(), exist_ok=True)
+        self.context.create_context(context=self.qualidx(), exist_ok=True)
 
         if self.__ff_run_kwargs__:
             kwargs.update(self.__ff_run_kwargs__)
@@ -657,7 +667,7 @@ class Composable(metaclass=MetaComposable):
         for key in self._ff_params:
             try:
                 params[key] = getattr(self, key)
-            except:
+            except Exception:
                 params[key] = None
         return params
 
@@ -815,7 +825,7 @@ class Composable(metaclass=MetaComposable):
                     if isinstance(attr_value._default, type) and issubclass(
                         attr_value._default, Composable
                     ):
-                        value["default"] = attr_value._default.describe()
+                        value["default"] = attr_value._default.describe()  # type:ignore
                     nodes[attr] = value
                 elif isinstance(attr_value, Param) and attr not in params:
                     params[attr] = attr_value.__persist_flow__()
@@ -832,14 +842,14 @@ class Composable(metaclass=MetaComposable):
         Args:
             ignore_depends: whether to ignore params and nodes that depend on others
         """
-        nodes = {}
+        nodes: dict = {}
         for node in self._ff_nodes:
             try:
                 node_obj: Composable = getattr(self, node)
                 if self.specs(node).get("depends_on", []) and ignore_depends:
                     continue
                 nodes[node] = node_obj.dump(ignore_depends=ignore_depends)
-            except:
+            except Exception:
                 nodes[node] = None
 
         params = {}
@@ -887,7 +897,7 @@ class Composable(metaclass=MetaComposable):
                 continue
             try:
                 getattr(self, attr)
-            except:
+            except Exception:
                 params.append(attr)
 
         for attr in self._ff_nodes:
@@ -900,7 +910,7 @@ class Composable(metaclass=MetaComposable):
                     params.append(f"{attr}.{each}")
                 for each in missings["nodes"]:
                     nodes.append(f"{attr}.{each}")
-            except:
+            except Exception:
                 nodes.append(attr)
 
         return {"params": params, "nodes": nodes}
@@ -968,7 +978,9 @@ class Composable(metaclass=MetaComposable):
         raise ValueError(f"{path} is not a param or a node")
 
     def __persist_flow__(self) -> dict:
-        """Represent the flow in a JSON-serializable dictionary, that can be constructed"""
+        """Represent the flow in a JSON-serializable dictionary, that can be
+        constructed
+        """
         export: dict = {
             "__type__": f"{self.__module__}.{self.__class__.__qualname__}",
         }
@@ -994,9 +1006,9 @@ class Composable(metaclass=MetaComposable):
 class ComposableProxy(Composable):
     """Wrap an object to be a step.
 
-    `ComposableProxy` demonstrates the same behavior as `Step`. The only difference is that
-    `ComposableProxy` doesn't know how the object will be called (e.g. `__call__` or any
-    methods) so it lazily exposes the methods when called.
+    `ComposableProxy` demonstrates the same behavior as `Step`. The only difference is
+    that `ComposableProxy` doesn't know how the object will be called (e.g. `__call__`
+    or any methods) so it lazily exposes the methods when called.
 
     Cannot use this class directly because Composable reserves some common _keywords
     that can conflict with original object.
@@ -1022,7 +1034,7 @@ class ComposableProxy(Composable):
         if middlware_cfg := getattr(self, "Middleware"):
             next_call = wrapper
             for cls_name in reversed(middlware_cfg.middleware):
-                cls = import_dotted_string(cls_name)
+                cls = import_dotted_string(cls_name, safe=False)
                 next_call = cls(obj=self, next_call=next_call)
             return next_call
 

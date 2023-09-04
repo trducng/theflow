@@ -1,11 +1,11 @@
-from typing import Any, Optional, Type, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional, Type, Union
 
-import yaml 
+import yaml
 
 if TYPE_CHECKING:
     from .base import Composable
-from .utils.modules import import_dotted_string
 
+from .utils.modules import import_dotted_string
 
 DEFAULT_CONFIG = {
     # don't store the result if None
@@ -45,7 +45,9 @@ class ConfigProperty:
         elif isinstance(value, dict) or value is None:
             obj.__dict__["_ff_config"] = Config(value, cls=obj.__class__)
         else:
-            raise ValueError(f"Unknown config type: {type(value)}. Must be dict or Config")
+            raise ValueError(
+                f"Unknown config type: {type(value)}. Must be dict or Config"
+            )
 
 
 class Config:
@@ -69,13 +71,14 @@ class Config:
 
     if TYPE_CHECKING:
         from pathlib import Path
+
         store_result: "Path"
         run_id: str
 
     def __init__(
         self,
         config: Optional[Union[dict, str]] = None,
-        cls: Optional[Type["Composable"]] = None
+        cls: Optional[Type["Composable"]] = None,
     ):
         self._available_configs = set(DEFAULT_CONFIG.keys())
 
@@ -84,7 +87,7 @@ class Config:
             self.update(cls)
         if config:
             if isinstance(config, str):
-                with open(config, "r") as f:
+                with open(config) as f:
                     config = yaml.safe_load(f)
             self.update(config)
 
@@ -122,6 +125,7 @@ class Config:
 
     def update(self, val: Any) -> None:
         from .base import Composable
+
         if isinstance(val, dict):
             self.update_from_dict(val)
         elif isinstance(val, type) and issubclass(val, Composable):

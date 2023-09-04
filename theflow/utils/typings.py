@@ -5,14 +5,14 @@ Consider these as experimental due to very naive implementation that for sure ca
 handle uncommon cases.
 """
 import inspect
-from typing import Any, get_args, get_origin, _GenericAlias, Callable, Union
+from typing import _GenericAlias  # type: ignore
+from typing import Any, Callable, Union, get_args, get_origin
 
 
 def is_union_type(annotation) -> bool:
     """Check if the annotation is a Union type"""
-    return (
-        annotation is Union or
-        (isinstance(annotation, _GenericAlias) and annotation.__origin__ is Union)
+    return annotation is Union or (
+        isinstance(annotation, _GenericAlias) and annotation.__origin__ is Union
     )
 
 

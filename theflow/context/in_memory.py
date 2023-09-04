@@ -3,7 +3,6 @@ from typing import Any, Optional
 
 from .base import BaseContext
 
-
 _MANAGER = None
 
 
@@ -12,6 +11,7 @@ class SimpleMemoryContext(BaseContext):
 
     The object is process-safe and can be used in multi-processing environment.
     """
+
     def __init__(self):
         self._msg_store = {}
         self._lock = None  # if not None, then _msg_store is a DictProxy
@@ -63,7 +63,7 @@ class SimpleMemoryContext(BaseContext):
 
         return self._msg_store[context].get(name, default)
 
-    def clear(self, name, context: Optional[str]):
+    def clear(self, name: Optional[str], context: Optional[str]):
         context = self._is_context_valid(context)
         if self._lock is not None:
             with self._lock:
@@ -85,7 +85,10 @@ class SimpleMemoryContext(BaseContext):
             self._msg_store[key].clear()
         self._msg_store[self._global_key] = {}
 
-    def create_local_context(self, context: str, exist_ok=False) -> str:
+    def has_context(self, context: str) -> bool:
+        return context in self._msg_store
+
+    def create_context(self, context: str, exist_ok=False) -> str:
         if context == self._global_key:
             raise ValueError(f"Cannot use {context} as context name")
 

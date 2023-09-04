@@ -64,7 +64,7 @@ def unflatten_dict(indict: dict) -> dict:
     Returns:
         unflattened dict
     """
-    outdict = {}
+    outdict: dict = {}
     for key, value in indict.items():
         subkeys = key.split(".")
         subdict = outdict

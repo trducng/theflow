@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from theflow import Composable, Param, Node, load
+from theflow import Composable, Node, Param, load
 
 
 def callback(obj, type_):

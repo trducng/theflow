@@ -42,11 +42,17 @@ class TestWorkflowFrom(TestCase):
         output = pipeline(y=10)
         self.assertEqual(output, 16)
         self.assertEqual(pipeline.last_run.output(), 16)
-        output = pipeline(
+
+        pipeline2 = SequentialPipeline(
+            step1=IncrementBy(x=1),
+            step2=IncrementBy(x=2),
+            step3=IncrementBy(x=3),
+        )
+        output = pipeline2(
             y=10,
             _ff_from=".step2",
-            _ff_from_run=Path(pipeline.config.store_result) / pipeline.last_run.id(),
+            _ff_from_run=Path(pipeline2.config.store_result) / pipeline.last_run.id(),
         )
-        self.assertEqual(pipeline.last_run.logs(".step1")["status"], "cached")
-        self.assertEqual(pipeline.last_run.logs(".step2")["status"], "rerun")
-        self.assertEqual(pipeline.last_run.logs(".step3")["status"], "run")
+        self.assertEqual(pipeline2.last_run.logs(".step1")["status"], "cached")
+        self.assertEqual(pipeline2.last_run.logs(".step2")["status"], "run")
+        self.assertEqual(pipeline2.last_run.logs(".step3")["status"], "run")

@@ -5,8 +5,8 @@ from typing import Any, Optional, Union
 
 import yaml
 
-from ..context import BaseContext
 from ..base import Composable
+from ..context import BaseContext
 
 
 class RunStructure:
@@ -78,20 +78,24 @@ class RunTracker:
         self._obj = obj
         self._context: BaseContext = obj.context
 
-        self._config = None
+        self._config: dict = {}
         self._progress = f"{obj.namex()}|{obj.idx()}|{which_progress}"
-        self._context.create_local_context(self._progress, exist_ok=True)
+        self._context.create_context(self._progress, exist_ok=True)
 
-    def log_progress(self, name: str, input: Any, output: Any, status: str = "run"):
+        if not obj._ff_prefix:
+            # root pipeline
+            self._context.set("name", obj.namex(), context=self._progress)
+            self._context.set("id", obj.idx(), context=self._progress)
+
+    def log_progress(self, name: str, **kwargs):
         """Set the input and output of the step
 
         Args:
-            name: name of the pipeline or step
-            input: input of the step
-            output: output of the step
-            status: status of the step, one of "run", "rerun", "cached"
+            name: name of the step
+            kwargs: will be logged to the step progress as key, value
         """
-        value = {"input": input, "output": output, "status": status}
+        value = self._context.get(name, default={}, context=self._progress)
+        value.update(kwargs)
         self._context.set(name, value, context=self._progress)
 
     def logs(self, name: Optional[str] = None) -> Any:
@@ -162,7 +166,7 @@ class RunTracker:
         Returns:
             the id of the run
         """
-        return self._context.get("run_id", context=None)
+        return self._context.get("id", context=self._progress)
 
     def load(self, run_path: Union[str, Path]):
         """Load a run
@@ -175,7 +179,7 @@ class RunTracker:
             progress = pickle.load(fi)
 
         for key, value in progress.items():
-            self.log_progress(key, **value)
+            self._context.set(key, value, context=self._progress)
 
     @property
     def config(self) -> Optional[dict]:

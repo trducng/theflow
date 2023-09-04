@@ -3,13 +3,13 @@ from unittest import TestCase
 import pytest
 
 from theflow import Composable
-from theflow.utils.paths import is_name_matched, is_parent_of_child
 from theflow.utils.modules import (
-    import_dotted_string,
-    serialize,
     deserialize,
+    import_dotted_string,
     init_object,
+    serialize,
 )
+from theflow.utils.paths import is_name_matched, is_parent_of_child
 
 
 class TestNameMatching(TestCase):
@@ -184,9 +184,12 @@ class TestSerialize(TestCase):
         self.assertEqual(serialize(serialize), "{{ theflow.utils.modules.serialize }}")
 
     def test_serialize_composite_list(self):
-        """Composite type should be serialized as dotted string wrapped by double curly braces"""
-        from theflow.base import Composable
+        """Composite type should be serialized as dotted string wrapped by double
+        curly braces
+        """
         from pathlib import Path
+
+        from theflow.base import Composable
 
         self.assertEqual(
             serialize([Composable, 6]), ["{{ theflow.base.Composable }}", 6]
@@ -197,9 +200,12 @@ class TestSerialize(TestCase):
         )
 
     def test_serialize_composite_dict(self):
-        """Composite type should be serialized as dotted string wrapped by double curly braces"""
-        from theflow.base import Composable
+        """Composite type should be serialized as dotted string wrapped by double
+        curly braces
+        """
         from pathlib import Path
+
+        from theflow.base import Composable
 
         self.assertEqual(
             serialize({"a": Composable, "b": 6}),
@@ -249,8 +255,9 @@ class TestDeserialize(TestCase):
 
     def test_deserialize_composite_list_unsafe(self):
         """Complex Python object within list"""
-        from theflow.base import Composable
         from pathlib import Path
+
+        from theflow.base import Composable
 
         self.assertEqual(
             deserialize(["{{ theflow.base.Composable }}", 6], safe=False),
@@ -265,9 +272,12 @@ class TestDeserialize(TestCase):
         )
 
     def test_deserialize_composite_dict_unsafe(self):
-        """Composite type should be serialized as dotted string wrapped by double curly braces"""
-        from theflow.base import Composable
+        """Composite type should be serialized as dotted string wrapped by double
+        curly braces
+        """
         from pathlib import Path
+
+        from theflow.base import Composable
 
         self.assertEqual(
             deserialize({"a": "{{ theflow.base.Composable }}", "b": 6}, safe=False),

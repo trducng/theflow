@@ -2,7 +2,6 @@ import re
 from pathlib import Path
 from typing import List, Optional, Union
 
-
 THEFLOW_DIR = ".theflow"
 
 
@@ -46,7 +45,7 @@ def get_theflow_path(loc: Optional[Union[str, Path]]) -> Optional[Path]:
     return None
 
 
-def get_or_create_theflow_path(loc: Optional[str] = None) -> Path:
+def get_or_create_theflow_path(loc: Union[None, str, Path] = None) -> Path:
     """Get the theflow directory (.theflow/) or create it if not exists
 
     It travels up the directory tree until it finds the theflow directory. If not

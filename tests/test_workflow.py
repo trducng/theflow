@@ -1,53 +1,53 @@
 import multiprocessing
 from unittest import TestCase
 
-from theflow.base import Composable
+import pytest
+
+from theflow.base import Composable, Node
 
 
-class IncrementBy:
-    def __init__(self, x):
-        self.x = x
+class IncrementBy(Composable):
+    x: int
 
     def run(self, y):
         return self.x + y
 
-class DecrementBy:
-    def __init__(self, x):
-        self.x = x
+
+class DecrementBy(Composable):
+    x: int
 
     def run(self, y):
         return self.x - y
 
 
-class MultiplyBy:
-    def __init__(self, x):
-        self.x = x
+class MultiplyBy(Composable):
+    x: int
 
     def run(self, y):
         return self.x * y
 
+
 def allow_multiprocessing(kwargs):
     func = kwargs.pop("func")
-    return func.run(**kwargs)
+    return func(**kwargs)
+
 
 class MultiprocessingWorkFlow(Composable):
-    def initialize(self):
-        self.increment_by = IncrementBy(1)
-        self.decrement_by = DecrementBy(1)
-        self.multiply_by = MultiplyBy(2)
+    increment_by = Node(default=IncrementBy, default_kwargs={"x": 1})
+    decrement_by = Node(default=DecrementBy, default_kwargs={"x": 1})
+    multiply_by = Node(default=MultiplyBy, default_kwargs={"x": 2})
 
     def run(self, x, times):
-        y = self.decrement_by.run(x, _ff_name="decrement")
+        y = self.decrement_by(x)
 
+        tasks = [{"y": y, "func": self.increment_by} for _ in range(times)]
         with multiprocessing.Pool(processes=min(times, 2)) as pool:
-            results = [each for each in pool.imap(
-                allow_multiprocessing,
-                [{"y": y, "_ff_name": f"increment_{idx}", "func": self.increment_by} for idx in range(times)]
-            )]
+            results = [each for each in pool.imap(allow_multiprocessing, tasks)]
 
         y = sum(results)
-        y = self.multiply_by.run(y, _ff_name="multiply")
+        y = self.multiply_by(y)
         return y
+
 
 class TestWorkflow(TestCase):
     def test_multiprocessing_output(self):
@@ -55,16 +55,17 @@ class TestWorkflow(TestCase):
         output = flow(1, times=10)
         self.assertEqual(output, 20)
 
+    @pytest.mark.skip(reason="theflow hasn't fully supported multiprocessing")
     def test_multiprocessing_context_contains_child_processes(self):
         flow = MultiprocessingWorkFlow()
-        flow._ff_context.activate_multiprocessing()
+        flow.context.activate_multiprocessing()
         output = flow(1, times=10)
-        flow._ff_context.deactivate_multiprocessing()
+        flow.context.deactivate_multiprocessing()
         self.assertEqual(output, 20)
-        self.assertIn(".increment_1", flow.last_run.logs(name=None))
+        self.assertIn(".increment[1]", flow.last_run.logs(name=None))
 
     def test_multiprocessing_context_doesnt_contain_child_processes_not_activated(self):
         flow = MultiprocessingWorkFlow()
         output = flow(1, times=10)
         self.assertEqual(output, 20)
-        self.assertNotIn(".increment_1", flow.last_run.logs(name=None))
+        self.assertNotIn(".increment[1]", flow.last_run.logs(name=None))

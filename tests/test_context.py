@@ -9,7 +9,6 @@ class X:
 
 
 class TestSimpleMemoryContext(TestCase):
-
     def test_thread_safe(self):
         """Test if the memory context is thread safe"""
         import threading
@@ -46,13 +45,13 @@ class TestSimpleMemoryContext(TestCase):
             context.set("d", X())
 
         context = SimpleMemoryContext()
-        context.make_process_safe()
+        context.activate_multiprocessing()
         processes = []
         for _ in range(10):
             p = multiprocessing.Process(target=run, args=(context,))
             processes.append(p)
             p.start()
-            
+
         for p in processes:
             p.join()
 
@@ -69,9 +68,9 @@ class TestSimpleMemoryContext(TestCase):
             context.set("a", 1)
             context.set("b", 2)
             context.set("c", 3)
-        
+
         context = SimpleMemoryContext()
-        context.make_process_safe()
+        context.activate_multiprocessing()
         processes = []
         for _ in range(10):
             p = multiprocessing.Process(target=run, args=(context,))

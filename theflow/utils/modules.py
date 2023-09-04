@@ -3,7 +3,6 @@ import inspect
 import logging
 from typing import Any, Dict, Optional, Type
 
-
 logger = logging.getLogger(__name__)
 NATIVE_TYPE = (dict, list, tuple, str, int, float, bool, type(None))
 

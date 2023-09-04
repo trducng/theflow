@@ -17,7 +17,6 @@ from typing import Any, Optional
 
 
 class BaseContext(abc.ABC):
-
     @abc.abstractmethod
     def __init__(self, *args, **kwargs):
         """Initialize connecting to the context"""
@@ -42,12 +41,13 @@ class BaseContext(abc.ABC):
 
         Args:
             name: name of the value. If None, get all values from the context in a dict
+            default: default value to return if the value does not exist
             context: name of the context, if None (default), use the global context
         """
         ...
 
     @abc.abstractmethod
-    def clear(self, name: Optional[str], context: Optional[str], force: bool):
+    def clear(self, name: Optional[str], context: Optional[str]):
         """Clear a value from the context
 
         Args:
@@ -62,11 +62,23 @@ class BaseContext(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def create_local_context(self, context: str, exist_ok=False) -> str:
-        """Create a local context
+    def has_context(self, context: str) -> bool:
+        """Check if a context exists
 
         Args:
-            context: name of the local context
+            context: name of the context
+
+        Returns:
+            True if the context exists, False otherwise
+        """
+        ...
+
+    @abc.abstractmethod
+    def create_context(self, context: str, exist_ok=False) -> str:
+        """Create a context
+
+        Args:
+            context: name of the context
             exist_ok: if True, do not raise error if the context already exists
 
         Returns:
