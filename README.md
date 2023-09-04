@@ -32,11 +32,11 @@ pip install theflow
 Pipeline can be defined as code. You initialize all the ops in `self.initialize` and route them in `self.run`.
 
 ```python
-from theflow import Composable
+from theflow import Compose
 
 # Define some operations used inside the pipeline
 # Operation 1: normal class-based Python object
-class IncrementBy(Composable):
+class IncrementBy(Compose):
 
   x: int
 
@@ -48,10 +48,10 @@ def decrement_by_5(x):
   return x - 5
 
 # Declare flow
-class MathFlow(Composable):
+class MathFlow(Compose):
 
-  increment: Composable
-  decrement: Composable
+  increment: Compose
+  decrement: Compose
 
   def run(self, x):
     # Route the operations in the flow

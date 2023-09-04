@@ -2,20 +2,20 @@ import shutil
 from pathlib import Path
 from unittest import TestCase
 
-from theflow.base import Composable
+from theflow.base import Compose
 
 
-class IncrementBy(Composable):
+class IncrementBy(Compose):
     x: int
 
     def run(self, y):
         return self.x + y
 
 
-class SequentialPipeline(Composable):
-    step1: Composable
-    step2: Composable
-    step3: Composable
+class SequentialPipeline(Compose):
+    step1: Compose
+    step2: Compose
+    step3: Compose
 
     class Config:
         store_result = ".test_temporary"

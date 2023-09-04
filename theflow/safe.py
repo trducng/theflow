@@ -2,7 +2,7 @@
 import logging
 from typing import Dict, Optional, Type
 
-from .base import Composable
+from .base import Compose
 from .utils.modules import deserialize, import_dotted_string
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ def load(
     /,
     safe=True,
     allowed_modules: Optional[Dict[str, Type]] = None,
-) -> Composable:
+) -> Compose:
     """Construct flow from exported dict
 
     Args:
@@ -23,9 +23,9 @@ def load(
         modules: dict of allowed modules
 
     Returns:
-        Composable: flow
+        Compose: flow
     """
-    cls: Type["Composable"]
+    cls: Type["Compose"]
     if safe:
         if allowed_modules is None:
             raise ValueError("A dict of allowed modules not provided when safe=True")
@@ -63,5 +63,5 @@ def create(
     /,
     safe=True,
     allowed_modules: Optional[Dict[str, Type]] = None,
-) -> Optional[Type[Composable]]:
+) -> Optional[Type[Compose]]:
     pass

@@ -35,14 +35,14 @@ logger = logging.getLogger(__name__)
 
 
 def contains_composable_in_annotation(annotation) -> bool:
-    """Return True if the annotation contains Composable"""
+    """Return True if the annotation contains Compose"""
     if is_union_type(annotation):
         return any(contains_composable_in_annotation(a) for a in annotation.__args__)
     if isinstance(annotation, ForwardRef):
         annotation = annotation._evaluate(globals(), locals(), frozenset())
         return contains_composable_in_annotation(annotation)
     if isinstance(annotation, type):
-        return issubclass(annotation, Composable)
+        return issubclass(annotation, Compose)
     return False
 
 
@@ -54,12 +54,12 @@ ParamAttribute = TypeVar("ParamAttribute")
 
 
 class Param(Generic[ParamAttribute]):
-    """Control the behavior of a parameter in a Composable
+    """Control the behavior of a parameter in a Compose
 
     Args:
         default: default value of the parameter
         default_callback: callback function to generate the default value. This
-            callback takes in the Composable object and output the default value.
+            callback takes in the Compose object and output the default value.
         refresh_on_set: if True, the original object will be refreshed when it is set
         depends_on: if set, the value of the parameter will be calculated from the
             values of the depends_on parameters (requires `default_callback`)
@@ -71,9 +71,7 @@ class Param(Generic[ParamAttribute]):
         self,
         default: Union[ParamAttribute, Type["empty"]] = empty,
         default_callback: Optional[
-            Callable[
-                [Optional["Composable"], Optional[Type["Composable"]]], ParamAttribute
-            ]
+            Callable[[Optional["Compose"], Optional[Type["Compose"]]], ParamAttribute]
         ] = None,
         help: str = "",
         refresh_on_set: bool = False,
@@ -108,7 +106,7 @@ class Param(Generic[ParamAttribute]):
             )
 
     def __get__(
-        self, obj: Optional["Composable"], type_: Optional[Type["Composable"]] = None
+        self, obj: Optional["Compose"], type_: Optional[Type["Compose"]] = None
     ) -> ParamAttribute:
         if obj is None:
             if self._default_callback:
@@ -119,8 +117,8 @@ class Param(Generic[ParamAttribute]):
                 )
             return self._default
 
-        if not isinstance(obj, Composable):
-            raise ValueError("Param can only be used with Composable")
+        if not isinstance(obj, Compose):
+            raise ValueError("Param can only be used with Compose")
 
         if self._depends_on:
             self._calculate_from_depends_on(obj, type_)
@@ -139,7 +137,7 @@ class Param(Generic[ParamAttribute]):
         return obj.__ff_params__[self._name]
 
     def _calculate_from_depends_on(
-        self, obj: "Composable", type_: Optional[Type["Composable"]] = None
+        self, obj: "Compose", type_: Optional[Type["Compose"]] = None
     ):
         """Calculate the value of the parameter from the depends_on"""
         if not self._depends_on:
@@ -167,7 +165,7 @@ class Param(Generic[ParamAttribute]):
                         )
                 break
 
-    def __set__(self, obj: "Composable", value: Any):
+    def __set__(self, obj: "Compose", value: Any):
         if self._depends_on:
             raise ValueError(
                 f"Param {self._qual_name} depends on {self._depends_on}, "
@@ -186,7 +184,7 @@ class Param(Generic[ParamAttribute]):
         if self._refresh_on_set:
             obj._initialize()
 
-    def __delete__(self, obj: "Composable"):
+    def __delete__(self, obj: "Compose"):
         if self._name in obj.__ff_params__:
             del obj.__ff_params__[self._name]
             if self._refresh_on_set:
@@ -247,16 +245,14 @@ class Param(Generic[ParamAttribute]):
 
 
 class Node:
-    """Control the behavior of a node in a Composable"""
+    """Control the behavior of a node in a Compose"""
 
     def __init__(
         self,
-        default: Union[Type["empty"], Type["Composable"]] = empty,
+        default: Union[Type["empty"], Type["Compose"]] = empty,
         default_kwargs: Optional[Dict[str, Any]] = None,
         default_callback: Optional[
-            Callable[
-                [Optional["Composable"], Optional[Type["Composable"]]], "Composable"
-            ]
+            Callable[[Optional["Compose"], Optional[Type["Compose"]]], "Compose"]
         ] = None,
         depends_on: Optional[Union[str, List[str]]] = None,
         no_cache: bool = False,
@@ -264,7 +260,7 @@ class Node:
         input: Union[Type["empty"], Dict[str, Any]] = empty,
         output: Any = empty,
     ):
-        self._default = cast("Composable", default)
+        self._default = cast("Compose", default)
         self._default_kwargs: dict = default_kwargs or {}
         self._default_callback = default_callback
         self._help = help
@@ -287,8 +283,8 @@ class Node:
             self._output = output_signature(default.run)  # type: ignore
 
     def __get__(
-        self, obj: Optional["Composable"], type_: Optional[Type["Composable"]] = None
-    ) -> "Composable":
+        self, obj: Optional["Compose"], type_: Optional[Type["Compose"]] = None
+    ) -> "Compose":
         if obj is None:
             if self._default_callback:
                 return self._default_callback(obj, type_)
@@ -298,8 +294,8 @@ class Node:
                 )
             return self._default(**self._default_kwargs)
 
-        if not isinstance(obj, Composable):
-            raise ValueError("Node can only be used with Composable")
+        if not isinstance(obj, Compose):
+            raise ValueError("Node can only be used with Compose")
 
         if self._depends_on:
             self._calculate_from_depends_on(obj, type_)
@@ -320,7 +316,7 @@ class Node:
         return obj.__ff_nodes__[self._name]
 
     def _calculate_from_depends_on(
-        self, obj: "Composable", type_: Optional[Type["Composable"]] = None
+        self, obj: "Compose", type_: Optional[Type["Compose"]] = None
     ):
         """Calculate the value of the parameter from the depends_on"""
         if not self._depends_on:
@@ -348,15 +344,13 @@ class Node:
                         )
                 break
 
-    def __set__(self, obj: "Composable", value: "Composable"):
-        if not isinstance(value, Composable):
-            raise ValueError(
-                f"Node can only be used with Composable, got {type(value)}"
-            )
+    def __set__(self, obj: "Compose", value: "Compose"):
+        if not isinstance(value, Compose):
+            raise ValueError(f"Node can only be used with Compose, got {type(value)}")
 
         obj.__ff_nodes__[self._name] = value
 
-    def __delete__(self, obj: "Composable"):
+    def __delete__(self, obj: "Compose"):
         if self._name in obj.__ff_nodes__:
             del obj.__ff_nodes__[self._name]
 
@@ -409,7 +403,7 @@ class Node:
         return export
 
 
-class MetaComposable(type):
+class MetaCompose(type):
     def __new__(cls, clsname, bases, attrs):
         # Make sure all nodes and params have the Node and Param descriptor
         for name, value in attrs.get("__annotations__", {}).items():
@@ -424,7 +418,7 @@ class MetaComposable(type):
             attrs[name] = desc
 
         try:
-            obj: Type["Composable"] = super().__new__(
+            obj: Type["Compose"] = super().__new__(
                 cls, clsname, bases, attrs  # type: ignore
             )
         except Exception as e:
@@ -448,10 +442,10 @@ class MetaComposable(type):
         return obj
 
 
-class Composable(metaclass=MetaComposable):
+class Compose(metaclass=MetaCompose):
     """Base class that handle basic logic of a composable component
 
-    Everything is a composable component. Subclass `Composable` to define and run your
+    Everything is a composable component. Subclass `Compose` to define and run your
     own flow or component.
 
     This class:
@@ -469,7 +463,7 @@ class Composable(metaclass=MetaComposable):
             setattr)
 
     Parameters and nodes have to be declared so that the information about the
-    Composable is explicit.
+    Compose is explicit.
     """
 
     class Middleware:
@@ -498,7 +492,7 @@ class Composable(metaclass=MetaComposable):
 
         self.last_run: RunTracker
         self.__ff_params__: Dict[str, Any] = {}
-        self.__ff_nodes__: Dict[str, Composable] = {}
+        self.__ff_nodes__: Dict[str, Compose] = {}
         self.__ff_depends__: Dict[str, Dict[str, int]] = defaultdict(dict)
         self.__ff_run_kwargs__: Dict[str, Any] = {}
         self._ff_params: List[str] = []
@@ -649,7 +643,7 @@ class Composable(metaclass=MetaComposable):
     def _set_context(self, context: BaseContext) -> None:
         self._ff_context = context
         for node in self._ff_nodes:
-            if isinstance(getattr(self, node), Composable):
+            if isinstance(getattr(self, node), Compose):
                 getattr(self, node).context = context
 
     def _del_context(self) -> None:
@@ -706,7 +700,7 @@ class Composable(metaclass=MetaComposable):
 
     @classmethod
     def _collect_registered_params_and_nodes(cls) -> Tuple[List[str], List[str]]:
-        """Return the list of all params and nodes registered in the Composable
+        """Return the list of all params and nodes registered in the Compose
 
         Returns:
             tuple[list[str], list[str]]: params, nodes
@@ -734,13 +728,13 @@ class Composable(metaclass=MetaComposable):
                 keywords[keyword] = each_cls
         return keywords
 
-    def _make_composable(self, value) -> "Composable":
-        if not isinstance(value, Composable):
-            value = ComposableProxy(ff_original_obj=value)
+    def _make_composable(self, value) -> "Compose":
+        if not isinstance(value, Compose):
+            value = ComposeProxy(ff_original_obj=value)
 
         return value
 
-    def _prepare_child(self, child: "Composable", name: str):
+    def _prepare_child(self, child: "Compose", name: str):
         if self._ff_in_run:
             child._ff_prefix = f"{self._ff_prefix}.{self._ff_name}"
             child._ff_name = (
@@ -823,7 +817,7 @@ class Composable(metaclass=MetaComposable):
                 if isinstance(attr_value, Node) and attr not in nodes:
                     value = attr_value.__persist_flow__()
                     if isinstance(attr_value._default, type) and issubclass(
-                        attr_value._default, Composable
+                        attr_value._default, Compose
                     ):
                         value["default"] = attr_value._default.describe()  # type:ignore
                     nodes[attr] = value
@@ -845,7 +839,7 @@ class Composable(metaclass=MetaComposable):
         nodes: dict = {}
         for node in self._ff_nodes:
             try:
-                node_obj: Composable = getattr(self, node)
+                node_obj: Compose = getattr(self, node)
                 if self.specs(node).get("depends_on", []) and ignore_depends:
                     continue
                 nodes[node] = node_obj.dump(ignore_depends=ignore_depends)
@@ -944,9 +938,9 @@ class Composable(metaclass=MetaComposable):
         """
         specs = self.specs(path)
         func = obj
-        if isinstance(obj, Composable):
+        if isinstance(obj, Compose):
             func = obj.run
-        elif isinstance(obj, type) and issubclass(obj, Composable):
+        elif isinstance(obj, type) and issubclass(obj, Compose):
             func = obj.run
 
         if specs["type"] == "param":
@@ -1003,14 +997,14 @@ class Composable(metaclass=MetaComposable):
         return export
 
 
-class ComposableProxy(Composable):
+class ComposeProxy(Compose):
     """Wrap an object to be a step.
 
-    `ComposableProxy` demonstrates the same behavior as `Step`. The only difference is
-    that `ComposableProxy` doesn't know how the object will be called (e.g. `__call__`
+    `ComposeProxy` demonstrates the same behavior as `Step`. The only difference is
+    that `ComposeProxy` doesn't know how the object will be called (e.g. `__call__`
     or any methods) so it lazily exposes the methods when called.
 
-    Cannot use this class directly because Composable reserves some common _keywords
+    Cannot use this class directly because Compose reserves some common _keywords
     that can conflict with original object.
 
     Raise ValueError in case of conflict.
@@ -1020,9 +1014,9 @@ class ComposableProxy(Composable):
 
     def __init__(self, **params):
         super().__init__(**params)
-        if isinstance(self.ff_original_obj, ComposableProxy):
+        if isinstance(self.ff_original_obj, ComposeProxy):
             raise ValueError(
-                "Unnecessary to wrap a ComposableProxy object with ComposableProxy"
+                "Unnecessary to wrap a ComposeProxy object with ComposeProxy"
             )
 
     def _create_callable(self, callable_obj):

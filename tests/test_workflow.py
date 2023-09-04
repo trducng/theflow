@@ -3,24 +3,24 @@ from unittest import TestCase
 
 import pytest
 
-from theflow.base import Composable, Node
+from theflow.base import Compose, Node
 
 
-class IncrementBy(Composable):
+class IncrementBy(Compose):
     x: int
 
     def run(self, y):
         return self.x + y
 
 
-class DecrementBy(Composable):
+class DecrementBy(Compose):
     x: int
 
     def run(self, y):
         return self.x - y
 
 
-class MultiplyBy(Composable):
+class MultiplyBy(Compose):
     x: int
 
     def run(self, y):
@@ -32,7 +32,7 @@ def allow_multiprocessing(kwargs):
     return func(**kwargs)
 
 
-class MultiprocessingWorkFlow(Composable):
+class MultiprocessingWorkFlow(Compose):
     increment_by = Node(default=IncrementBy, default_kwargs={"x": 1})
     decrement_by = Node(default=DecrementBy, default_kwargs={"x": 1})
     multiply_by = Node(default=MultiplyBy, default_kwargs={"x": 2})

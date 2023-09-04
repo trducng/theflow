@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any, Optional, Type, Union
 import yaml
 
 if TYPE_CHECKING:
-    from .base import Composable
+    from .base import Compose
 
 from .utils.modules import import_dotted_string
 
@@ -17,7 +17,7 @@ DEFAULT_CONFIG = {
 class ConfigGet:
     """A wrapper class for config retrieval"""
 
-    def __init__(self, config: "Config", pipeline: "Composable"):
+    def __init__(self, config: "Config", pipeline: "Compose"):
         self._config = config
         self._pipeline = pipeline
 
@@ -31,12 +31,12 @@ class ConfigGet:
 class ConfigProperty:
     """Serve as property to access the config from the pipeline instance"""
 
-    def __get__(self, obj: "Composable", obj_type: Type["Composable"]) -> Any:
+    def __get__(self, obj: "Compose", obj_type: Type["Compose"]) -> Any:
         if obj._ff_config is None:
             raise ValueError("ConfigProperty can only be accessed after initialization")
         return ConfigGet(obj._ff_config, obj)
 
-    def __set__(self, obj: "Composable", value: Union[dict, "Config", None]) -> None:
+    def __set__(self, obj: "Compose", value: Union[dict, "Config", None]) -> None:
         if not isinstance(value, Config):
             raise ValueError("ConfigProperty can only be set with Config object")
 
@@ -78,7 +78,7 @@ class Config:
     def __init__(
         self,
         config: Optional[Union[dict, str]] = None,
-        cls: Optional[Type["Composable"]] = None,
+        cls: Optional[Type["Compose"]] = None,
     ):
         self._available_configs = set(DEFAULT_CONFIG.keys())
 
@@ -112,7 +112,7 @@ class Config:
 
             setattr(self, key, value)
 
-    def update_from_pipeline(self, cls: Type["Composable"]) -> None:
+    def update_from_pipeline(self, cls: Type["Compose"]) -> None:
         """Parse the pipeline configs from pipeline.Config"""
         classes = cls.mro()
         for each_cls in reversed(classes):
@@ -124,11 +124,11 @@ class Config:
         self.update_from_dict(config.export())
 
     def update(self, val: Any) -> None:
-        from .base import Composable
+        from .base import Compose
 
         if isinstance(val, dict):
             self.update_from_dict(val)
-        elif isinstance(val, type) and issubclass(val, Composable):
+        elif isinstance(val, type) and issubclass(val, Compose):
             self.update_from_pipeline(val)
         elif isinstance(val, Config):
             self.update_from_config(val)

@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import pytest
 
-from theflow import Composable
+from theflow import Compose
 from theflow.utils.modules import (
     deserialize,
     import_dotted_string,
@@ -189,14 +189,12 @@ class TestSerialize(TestCase):
         """
         from pathlib import Path
 
-        from theflow.base import Composable
+        from theflow.base import Compose
 
+        self.assertEqual(serialize([Compose, 6]), ["{{ theflow.base.Compose }}", 6])
         self.assertEqual(
-            serialize([Composable, 6]), ["{{ theflow.base.Composable }}", 6]
-        )
-        self.assertEqual(
-            serialize([Composable, 6, [Path, "hello"]]),
-            ["{{ theflow.base.Composable }}", 6, ["{{ pathlib.Path }}", "hello"]],
+            serialize([Compose, 6, [Path, "hello"]]),
+            ["{{ theflow.base.Compose }}", 6, ["{{ pathlib.Path }}", "hello"]],
         )
 
     def test_serialize_composite_dict(self):
@@ -205,16 +203,16 @@ class TestSerialize(TestCase):
         """
         from pathlib import Path
 
-        from theflow.base import Composable
+        from theflow.base import Compose
 
         self.assertEqual(
-            serialize({"a": Composable, "b": 6}),
-            {"a": "{{ theflow.base.Composable }}", "b": 6},
+            serialize({"a": Compose, "b": 6}),
+            {"a": "{{ theflow.base.Compose }}", "b": 6},
         )
         self.assertEqual(
-            serialize({"a": Composable, "b": 6, "c": {"hello": Path}}),
+            serialize({"a": Compose, "b": 6, "c": {"hello": Path}}),
             {
-                "a": "{{ theflow.base.Composable }}",
+                "a": "{{ theflow.base.Compose }}",
                 "b": 6,
                 "c": {"hello": "{{ pathlib.Path }}"},
             },
@@ -227,9 +225,7 @@ class TestSerialize(TestCase):
 
         self.assertEqual(serialize(Any), "{{ typing.Any }}")
         self.assertEqual(serialize(Union[str, int]), "{{ typing.Union[str, int] }}")
-        self.assertEqual(
-            serialize(list[Composable]), "{{ list[theflow.base.Composable] }}"
-        )
+        self.assertEqual(serialize(list[Compose]), "{{ list[theflow.base.Compose] }}")
 
 
 class TestDeserialize(TestCase):
@@ -257,18 +253,18 @@ class TestDeserialize(TestCase):
         """Complex Python object within list"""
         from pathlib import Path
 
-        from theflow.base import Composable
+        from theflow.base import Compose
 
         self.assertEqual(
-            deserialize(["{{ theflow.base.Composable }}", 6], safe=False),
-            [Composable, 6],
+            deserialize(["{{ theflow.base.Compose }}", 6], safe=False),
+            [Compose, 6],
         )
         self.assertEqual(
             deserialize(
-                ["{{ theflow.base.Composable }}", 6, ["{{ pathlib.Path }}", "hello"]],
+                ["{{ theflow.base.Compose }}", 6, ["{{ pathlib.Path }}", "hello"]],
                 safe=False,
             ),
-            [Composable, 6, [Path, "hello"]],
+            [Compose, 6, [Path, "hello"]],
         )
 
     def test_deserialize_composite_dict_unsafe(self):
@@ -277,22 +273,22 @@ class TestDeserialize(TestCase):
         """
         from pathlib import Path
 
-        from theflow.base import Composable
+        from theflow.base import Compose
 
         self.assertEqual(
-            deserialize({"a": "{{ theflow.base.Composable }}", "b": 6}, safe=False),
-            {"a": Composable, "b": 6},
+            deserialize({"a": "{{ theflow.base.Compose }}", "b": 6}, safe=False),
+            {"a": Compose, "b": 6},
         )
         self.assertEqual(
             deserialize(
                 {
-                    "a": "{{ theflow.base.Composable }}",
+                    "a": "{{ theflow.base.Compose }}",
                     "b": 6,
                     "c": {"hello": "{{ pathlib.Path }}"},
                 },
                 safe=False,
             ),
-            {"a": Composable, "b": 6, "c": {"hello": Path}},
+            {"a": Compose, "b": 6, "c": {"hello": Path}},
         )
 
     @pytest.mark.skip(reason="TODO: not work yet")
@@ -302,6 +298,4 @@ class TestDeserialize(TestCase):
 
         self.assertEqual(serialize(Any), "{{ typing.Any }}")
         self.assertEqual(serialize(Union[str, int]), "{{ typing.Union[str, int] }}")
-        self.assertEqual(
-            serialize(list[Composable]), "{{ list[theflow.base.Composable] }}"
-        )
+        self.assertEqual(serialize(list[Compose]), "{{ list[theflow.base.Compose] }}")

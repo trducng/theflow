@@ -5,7 +5,7 @@ from typing import Any, Optional, Union
 
 import yaml
 
-from ..base import Composable
+from ..base import Compose
 from ..context import BaseContext
 
 
@@ -67,14 +67,14 @@ class RunTracker:
     """Define run-related methods to track the information in the run
 
     Args:
-        obj: the Composable that contains necessary information to log info
+        obj: the Compose that contains necessary information to log info
         which_progress: the name of the progress to store the run information. Can be
             useful to track multiple progresses in the same run. Default to
             "__progress__" which refers to the current progress.
         config: the config of the run
     """
 
-    def __init__(self, obj: Composable, which_progress: str = "__progress__"):
+    def __init__(self, obj: Compose, which_progress: str = "__progress__"):
         self._obj = obj
         self._context: BaseContext = obj.context
 

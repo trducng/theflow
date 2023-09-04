@@ -1,13 +1,13 @@
 from unittest import TestCase
 
-from theflow import Composable, Node, Param, load
+from theflow import Compose, Node, Param, load
 
 
 def callback(obj, type_):
     return obj.a * 2
 
 
-class Sum1(Composable):
+class Sum1(Compose):
     a: int
     b: int = 10
     c: int = 10
@@ -17,17 +17,17 @@ class Sum1(Composable):
         return self.a + self.b + self.c
 
 
-class Sum2(Composable):
+class Sum2(Compose):
     a: int
 
     def run(self, a, b: int, *args, **kwargs) -> int:
         return self.a + a + b
 
 
-class Plus(Composable):
+class Plus(Compose):
     a: int
     e: int
-    x: Composable
+    x: Compose
     y = Node(default=Sum1, default_kwargs={"a": 100})
     m = Node(default=Sum2, default_kwargs={"a": 100})
 

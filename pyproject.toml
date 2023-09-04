@@ -3,10 +3,10 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-version = "0.2.3"
+version = "0.3.0"
 name = "theflow"
 authors = [{ name = "trducng", email = "trungduc1992@gmail.com" }]
-description = "Manage your prompts"
+description = "A simple framework to build and run flows"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
