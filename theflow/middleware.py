@@ -1,8 +1,9 @@
 import logging
-from typing import TYPE_CHECKING, Callable, Union
+from abc import abstractmethod
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
-    from .base import Compose, ComposeProxy
+    from .base import Compose
 
 logger = logging.getLogger(__name__)
 
@@ -10,35 +11,16 @@ logger = logging.getLogger(__name__)
 class Middleware:
     """Middleware template to work on the input and output of a node"""
 
-    def __init__(self, obj: Union["Compose", "ComposeProxy"], next_call: Callable):
-        from .base import Compose, ComposeProxy
-
+    def __init__(self, obj: "Compose", next_call: Callable):
         if obj is None:
             raise ValueError("obj must be specified")
         self.obj = obj
-        self.obj_type: str = ""
-        if isinstance(obj, ComposeProxy):
-            self.obj_type = "step"
-        elif isinstance(obj, Compose):
-            self.obj_type = "pipeline"
-        else:
-            raise AttributeError(
-                f"obj must be either Compose or ComposeProxy, got {type(obj)}"
-            )
         self.next_call = next_call
 
-    def run_step(self, *args, **kwargs):
-        return args, kwargs
-
-    def run_pipeline(self, *args, **kwargs):
-        return args, kwargs
-
+    @abstractmethod
     def __call__(self, *args, **kwargs):
-        if self.obj_type == "step":
-            return self.run_step(*args, **kwargs)
-        elif self.obj_type == "pipeline":
-            return self.run_pipeline(*args, **kwargs)
-        raise NotImplementedError(f"Haven't implemented for {self.obj_type}")
+        """Execute the middleware"""
+        ...
 
 
 class SkipComponentMiddleware(Middleware):
@@ -94,7 +76,6 @@ class SkipComponentMiddleware(Middleware):
 
         # Decide whether to run or fetch from the cache
         _ff_name = self.obj.abs_pathx()
-        current_run = RunTracker(self.obj)
 
         good_to_run: bool = True
         if self.obj.context.has_context(context=self.obj.parent_qualidx()):
@@ -112,18 +93,18 @@ class SkipComponentMiddleware(Middleware):
                     "good_to_run", True, context=self.obj.parent_qualidx()
                 )
                 logger.info(f"Run {_ff_name}. Turn good_to_run from False to True")
-                current_run.log_progress(_ff_name, status="run")
+                self.obj.log_progress(_ff_name, status="run")
                 return self.next_call(*args, **kwargs)
 
             try:
                 from_run = RunTracker(self.obj, which_progress="__from_run__")
                 output = from_run.output(name=_ff_name)
                 logger.info(f"Cached {_ff_name}")
-                current_run.log_progress(_ff_name, status="cached")
+                self.obj.log_progress(_ff_name, status="cached")
                 return output
             except Exception as e:
                 logger.warning(f"Failed to get output from run: {e}")
-                current_run.log_progress(_ff_name, status="run")
+                self.obj.log_progress(_ff_name, status="run")
                 return self.next_call(*args, **kwargs)
 
         if (
@@ -132,7 +113,7 @@ class SkipComponentMiddleware(Middleware):
         ):
             self.obj.context.set("good_to_run", False, context=self.obj.flow_qualidx())
 
-        current_run.log_progress(_ff_name, status="run")
+        self.obj.log_progress(_ff_name, status="run")
         return self.next_call(*args, **kwargs)
 
 
@@ -145,11 +126,10 @@ class TrackProgressMiddleware(Middleware):
     """
 
     def __call__(self, *args, **kwargs):
-        from .runs.base import RunTracker
-
-        self.obj.last_run = RunTracker(self.obj)
-
         if self.obj.abs_pathx() == ".":
+            from .runs.base import RunTracker
+
+            self.obj.last_run = RunTracker(self.obj)
             self.obj.last_run.config = (
                 self.obj._ff_config.export()
             )  # pyright: reportOptionalMemberAccess=false
@@ -157,7 +137,7 @@ class TrackProgressMiddleware(Middleware):
         _ff_name = self.obj.abs_pathx()
         _input = {"args": args, "kwargs": kwargs}
         _output = self.next_call(*args, **kwargs)
-        self.obj.last_run.log_progress(_ff_name, input=_input, output=_output)
+        self.obj.log_progress(_ff_name, input=_input, output=_output)
 
         if self.obj.abs_pathx() == ".":
             store_result = self.obj.config.store_result

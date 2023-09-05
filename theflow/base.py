@@ -21,6 +21,7 @@ from . import settings
 from .config import Config, ConfigProperty
 from .context import BaseContext
 from .exceptions import InvalidNodeDefinition, InvalidParamDefinition
+from .runs.base import RunTracker
 from .utils.modules import import_dotted_string, init_object, serialize
 from .utils.pretties import reindent_docstring, unflatten_dict
 from .utils.typings import (
@@ -313,6 +314,9 @@ class Node:
 
         obj._prepare_child(obj.__ff_nodes__[self._name], self._name)
 
+        if not isinstance(obj.__ff_nodes__[self._name], Compose):
+            raise ValueError(f"Node {obj.__class__}.{self._name} is not a Compose")
+
         return obj.__ff_nodes__[self._name]
 
     def _calculate_from_depends_on(
@@ -475,21 +479,34 @@ class Compose(metaclass=MetaCompose):
     config = ConfigProperty()
 
     _keywords = [
-        "last_run",
-        "apply",
         "Middleware",
         "Config",
+        "abs_pathx",
+        "apply",
         "config",
-        "run",
-        "params",
-        "prefix",
-        "nodes",
         "context",
+        "describe",
+        "dump",
+        "flow_qualidx",
+        "get_from_path",
+        "idx",
+        "is_compatible",
+        "last_run",
+        "log_progress",
+        "missing",
+        "namex",
+        "nodes",
+        "params",
+        "parent_qualidx",
+        "qualidx",
+        "run",
+        "set",
+        "set_run",
+        "specs",
+        "visualize",
     ]
 
     def __init__(self, _params: Optional[dict] = None, /, **params):
-        from .runs.base import RunTracker
-
         self.last_run: RunTracker
         self.__ff_params__: Dict[str, Any] = {}
         self.__ff_nodes__: Dict[str, Compose] = {}
@@ -670,7 +687,8 @@ class Compose(metaclass=MetaCompose):
             return super().__setattr__(name, value)
 
         if name in self._ff_nodes:
-            value = self._make_composable(value)
+            if not isinstance(value, Compose):
+                value = self._make_composable(value)
 
         return super().__setattr__(name, value)
 
@@ -729,10 +747,7 @@ class Compose(metaclass=MetaCompose):
         return keywords
 
     def _make_composable(self, value) -> "Compose":
-        if not isinstance(value, Compose):
-            value = ComposeProxy(ff_original_obj=value)
-
-        return value
+        return ComposeProxy(ff_original_obj=value)
 
     def _prepare_child(self, child: "Compose", name: str):
         if self._ff_in_run:
@@ -970,6 +985,14 @@ class Compose(metaclass=MetaCompose):
             return ok_input and ok_output
 
         raise ValueError(f"{path} is not a param or a node")
+
+    def log_progress(self, name: Optional[str] = None, **kwargs):
+        """Log the progress to the name"""
+        if name is None:
+            name = self.abs_pathx()
+
+        run_tracker = RunTracker(self)
+        run_tracker.log_progress(name, **kwargs)
 
     def __persist_flow__(self) -> dict:
         """Represent the flow in a JSON-serializable dictionary, that can be

@@ -1,12 +1,13 @@
 import pickle
 import shutil
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import yaml
 
-from ..base import Compose
-from ..context import BaseContext
+if TYPE_CHECKING:
+    from ..base import Compose
+    from ..context import BaseContext
 
 
 class RunStructure:
@@ -74,9 +75,9 @@ class RunTracker:
         config: the config of the run
     """
 
-    def __init__(self, obj: Compose, which_progress: str = "__progress__"):
+    def __init__(self, obj: "Compose", which_progress: str = "__progress__"):
         self._obj = obj
-        self._context: BaseContext = obj.context
+        self._context: "BaseContext" = obj.context
 
         self._config: dict = {}
         self._progress = f"{obj.namex()}|{obj.idx()}|{which_progress}"
