@@ -1,9 +1,7 @@
-import multiprocessing
 from unittest import TestCase
 
-import pytest
-
 from theflow.base import Compose, Node
+from theflow.utils.multiprocess import parallel
 
 
 class IncrementBy(Compose):
@@ -40,9 +38,8 @@ class MultiprocessingWorkFlow(Compose):
     def run(self, x, times):
         y = self.decrement_by(x)
 
-        tasks = [{"y": y, "func": self.increment_by} for _ in range(times)]
-        with multiprocessing.Pool(processes=min(times, 2)) as pool:
-            results = [each for each in pool.imap(allow_multiprocessing, tasks)]
+        tasks = [{"y": y} for _ in range(times)]
+        results = list(parallel(self, "increment_by", tasks, processes=min(times, 2)))
 
         y = sum(results)
         y = self.multiply_by(y)
@@ -55,14 +52,13 @@ class TestWorkflow(TestCase):
         output = flow(1, times=10)
         self.assertEqual(output, 20)
 
-    @pytest.mark.skip(reason="theflow hasn't fully supported multiprocessing")
     def test_multiprocessing_context_contains_child_processes(self):
         flow = MultiprocessingWorkFlow()
         flow.context.activate_multiprocessing()
         output = flow(1, times=10)
         flow.context.deactivate_multiprocessing()
         self.assertEqual(output, 20)
-        self.assertIn(".increment[1]", flow.last_run.logs(name=None))
+        self.assertIn(".increment_by[1]", flow.last_run.logs(name=None))
 
     def test_multiprocessing_context_doesnt_contain_child_processes_not_activated(self):
         flow = MultiprocessingWorkFlow()

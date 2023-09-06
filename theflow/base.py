@@ -553,7 +553,7 @@ class Compose(metaclass=MetaCompose):
         self._ff_name: str = ""  # only root node has name as empty ""
         self._ff_run_id: str = ""  # the current run id
         self._ff_flow_name: str = ""  # the run name
-        self._ff_childs_called: dict = defaultdict(int)  # only available for root
+        self._ff_childs_called: dict = {}  # only available for root
 
     def abs_pathx(self) -> str:
         """Get the node absolute path in execution flow.
@@ -759,7 +759,7 @@ class Compose(metaclass=MetaCompose):
             )
             child._ff_run_id = self._ff_run_id
             child._ff_flow_name = self._ff_flow_name
-            self._ff_childs_called[name] += 1
+            self._ff_childs_called[name] = self._ff_childs_called.get(name, 0) + 1
             child.context = self.context
 
     @classmethod
