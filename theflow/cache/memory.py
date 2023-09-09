@@ -2,13 +2,14 @@ import logging
 import multiprocessing
 import multiprocessing.managers
 import multiprocessing.synchronize
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 from .base import BaseCache
 
 logger = logging.getLogger(__name__)
 MANAGERS: Dict[str, multiprocessing.managers.SyncManager] = {}
 LOCKS: Dict[str, multiprocessing.synchronize.RLock] = {}
+MSG_STORE: Dict[str, multiprocessing.managers.DictProxy] = {}
 
 
 class MemoryCache(BaseCache):
@@ -32,29 +33,28 @@ class MemoryCache(BaseCache):
         if uid not in LOCKS:
             LOCKS[uid] = multiprocessing.RLock()
 
-        self._msg_store: Union[dict, multiprocessing.managers.DictProxy] = MANAGERS[
-            uid
-        ].dict()
+        if uid not in MSG_STORE:
+            MSG_STORE[uid] = MANAGERS[uid].dict()
 
     def add(self, key: str, value: Any, timeout: Optional[int] = None) -> None:
         logger.info(f"Add: Timeout value ({timeout}) is ignored for memory cache")
         with LOCKS[self.uid]:
-            if key not in self._msg_store:
-                self._msg_store[key] = value
+            if key not in MSG_STORE[self.uid]:
+                MSG_STORE[self.uid][key] = value
 
     def get(self, key: str, default: Any = None) -> Any:
         with LOCKS[self.uid]:
-            return self._msg_store.get(key, default)
+            return MSG_STORE[self.uid].get(key, default)
 
     def delete(self, key: str) -> None:
         with LOCKS[self.uid]:
-            if key in self._msg_store:
-                del self._msg_store[key]
+            if key in MSG_STORE[self.uid]:
+                del MSG_STORE[self.uid][key]
 
     def set(self, key: str, value: Any, timeout: Optional[int] = None) -> None:
         logger.info(f"Set: Timeout value ({timeout}) is ignored for memory cache")
         with LOCKS[self.uid]:
-            self._msg_store[key] = value
+            MSG_STORE[self.uid][key] = value
 
     def touch(self, key: str, timeout: Optional[int] = None) -> None:
         logger.info(
@@ -63,41 +63,36 @@ class MemoryCache(BaseCache):
 
     def clear(self) -> None:
         with LOCKS[self.uid]:
-            self._msg_store.clear()
+            MSG_STORE[self.uid].clear()
 
     def close(self) -> None:
-        self._msg_store = self._msg_store.copy()
-        if self.uid in MANAGERS:
-            MANAGERS[self.uid].shutdown()
-            del MANAGERS[self.uid]
-        if self.uid in LOCKS:
-            del LOCKS[self.uid]
+        ...
 
     def incr(self, key: str, delta: int = 1) -> int:
         with LOCKS[self.uid]:
-            if key not in self._msg_store:
-                self._msg_store[key] = 0
-            self._msg_store[key] += delta
-            return self._msg_store[key]
+            if key not in MSG_STORE[self.uid]:
+                MSG_STORE[self.uid][key] = 0
+            MSG_STORE[self.uid][key] += delta
+            return MSG_STORE[self.uid][key]
 
     def decr(self, key: str, delta: int = 1) -> int:
         return self.incr(key, -delta)
 
     def __contains__(self, key: str) -> bool:
         with LOCKS[self.uid]:
-            return key in self._msg_store
+            return key in MSG_STORE[self.uid]
 
     def __getitem__(self, key: str) -> Any:
         with LOCKS[self.uid]:
-            return self._msg_store[key]
+            return MSG_STORE[self.uid][key]
 
     def __setitem__(self, key: str, value: Any) -> None:
         with LOCKS[self.uid]:
-            self._msg_store[key] = value
+            MSG_STORE[self.uid][key] = value
 
     def __delitem__(self, key: str) -> None:
         with LOCKS[self.uid]:
-            del self._msg_store[key]
+            del MSG_STORE[self.uid][key]
 
     @property
     def lock(self):

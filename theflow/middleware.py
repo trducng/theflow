@@ -145,3 +145,44 @@ class TrackProgressMiddleware(Middleware):
                 self.obj.last_run.persist(str(store_result), self.obj._ff_run_id)
 
         return _output
+
+
+class CachingMiddleware(Middleware):
+    """Cache the output of a compose and reuse that output if the input and compose
+    definition is the same
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        from . import settings
+        from .utils.modules import init_object
+
+        self._cache = init_object(settings.CACHE, safe=False)
+
+    def __call__(self, *args, **kwargs):
+        hash_key = self.create_key(*args, **kwargs)
+        if hash_key in self._cache:
+            return self._cache[hash_key]
+
+        output = self.next_call(*args, **kwargs)
+        self._cache[hash_key] = output
+        return output
+
+    def create_key(self, *args, **kwargs) -> str:
+        """Create a key based on the input and Compose's definition
+
+        Specifically, it depends on:
+            - the `run`'s input
+            - the Compose's class name
+            - the Compose's dump
+        """
+        from .utils.hashes import naivehash
+
+        hasher = naivehash()
+        content = {
+            "input": {"args": args, "kwargs": kwargs},
+            "definition": self.obj.dump(),
+            "name": self.obj.__class__.__name__,
+        }
+        return hasher(content)
