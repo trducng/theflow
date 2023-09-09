@@ -18,7 +18,7 @@ def load(
     """Construct flow from exported dict
 
     Args:
-        obj: flow configuration exported with Flow.export()
+        obj: flow configuration exported with Flow.dump()
         safe: if True, only allowed modules can be imported
         modules: dict of allowed modules
 

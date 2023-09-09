@@ -514,7 +514,7 @@ class Compose(metaclass=MetaCompose):
         self.__ff_run_kwargs__: Dict[str, Any] = {}
         self._ff_params: List[str] = []
         self._ff_nodes: List[str] = []
-        self._ff_config: Optional[Config] = None
+        self._ff_config: Config = Config(cls=self.__class__)
         self._ff_context: Optional[Context] = None
 
         # collect
@@ -621,6 +621,7 @@ class Compose(metaclass=MetaCompose):
         if not self._ff_prefix:  # only root node has prefix as empty
             # administrative setup
             self._ff_run_id = self.config.run_id
+            self._ff_flow_name: str = self.config.compose_name
             self.context.create_context(context=self.flow_qualidx())
             self.context.set("run_id", self._ff_run_id, context=self.flow_qualidx())
 
@@ -693,12 +694,6 @@ class Compose(metaclass=MetaCompose):
         return super().__setattr__(name, value)
 
     def _initialize(self):
-        # TODO: move setting up config and context out of _initialize. They do not have
-        # anything to do with initializing the nodes
-        if self._ff_config is None:
-            self._ff_config = Config(
-                cls=self.__class__
-            )  # TODO: this is more like setting than config
         if self._ff_context is None:
             self._ff_context = init_object(settings.CONTEXT, safe=False)
 
@@ -709,11 +704,6 @@ class Compose(metaclass=MetaCompose):
 
         self._ff_initializing = True
         self._initialize_nodes()
-        for node in self._ff_nodes:
-            # TODO: maybe put all of these logics in _prepare_child
-            node_obj = getattr(self, node, None)
-            if node_obj is not None:
-                node_obj.config = self._ff_config
         self._ff_initializing = False
 
     @classmethod
@@ -1062,8 +1052,6 @@ class ComposeProxy(Compose):
         return self.ff_original_obj.run(*args, **kwargs)
 
     def __call__(self, *args, **kwargs):
-        if self._ff_config is None:
-            self._ff_config = Config(cls=self.__class__)
         if self._ff_context is None:
             self._ff_context = init_object(settings.CONTEXT, safe=False)
 
@@ -1080,8 +1068,6 @@ class ComposeProxy(Compose):
                 f"{self.__class__.__qualname__} object has no attribute {name}"
             )
 
-        if self._ff_config is None:
-            self._ff_config = Config(cls=self.__class__)
         if self._ff_context is None:
             self._ff_context = init_object(settings.CONTEXT, safe=False)
 

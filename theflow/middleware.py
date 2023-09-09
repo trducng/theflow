@@ -130,9 +130,7 @@ class TrackProgressMiddleware(Middleware):
             from .runs.base import RunTracker
 
             self.obj.last_run = RunTracker(self.obj)
-            self.obj.last_run.config = (
-                self.obj._ff_config.export()
-            )  # pyright: reportOptionalMemberAccess=false
+            self.obj.last_run.config = self.obj.config.dump()
 
         _ff_name = self.obj.abs_pathx()
         _input = {"args": args, "kwargs": kwargs}

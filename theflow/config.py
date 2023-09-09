@@ -11,6 +11,7 @@ DEFAULT_CONFIG = {
     # don't store the result if None
     "store_result": "{{ theflow.callbacks.store_result__project_root }}",
     "run_id": "{{ theflow.callbacks.run_id__timestamp }}",
+    "compose_name": "{{ theflow.callbacks.compose_name__class_name }}",
 }
 
 
@@ -26,6 +27,10 @@ class ConfigGet:
         if callable(attr):
             return attr(self._pipeline)
         return attr
+
+    def dump(self) -> dict:
+        """Pass-through the config export"""
+        return self._config.dump()
 
 
 class ConfigProperty:
@@ -121,7 +126,7 @@ class Config:
 
     def update_from_config(self, config: "Config") -> None:
         """Parse the pipeline configs from another Config instance"""
-        self.update_from_dict(config.export())
+        self.update_from_dict(config.dump())
 
     def update(self, val: Any) -> None:
         from .base import Compose
@@ -132,11 +137,10 @@ class Config:
             self.update_from_pipeline(val)
         elif isinstance(val, Config):
             self.update_from_config(val)
-        # else:
-        #     import pdb; pdb.set_trace()
-        #     raise ValueError(f"Unknown config type: {type(val)}")
+        else:
+            raise ValueError(f"Unknown config type: {type(val)}")
 
-    def export(self) -> dict:
+    def dump(self) -> dict:
         """Export the config dict"""
         output = {}
         for key in self._available_configs:
