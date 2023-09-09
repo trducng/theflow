@@ -16,6 +16,7 @@ EXAMPLE_FOLDER = Path(__file__).parent.parent / "examples"
         Path(EXAMPLE_FOLDER, "03_introspection.ipynb"),
         Path(EXAMPLE_FOLDER, "04_save_and_load.ipynb"),
         Path(EXAMPLE_FOLDER, "05_context.ipynb"),
+        Path(EXAMPLE_FOLDER, "06_multiprocessing.ipynb"),
     ],
 )
 def test_execute_all_notebooks(notebook_path: Union[Path, str]):

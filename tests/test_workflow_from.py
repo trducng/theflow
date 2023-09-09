@@ -19,7 +19,6 @@ class SequentialPipeline(Compose):
 
     class Config:
         store_result = ".test_temporary"
-        run_id = "test_workflow_from"
 
     def run(self, y):
         y = self.step1(y)

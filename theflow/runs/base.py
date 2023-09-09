@@ -7,7 +7,7 @@ import yaml
 
 if TYPE_CHECKING:
     from ..base import Compose
-    from ..context import BaseContext
+    from ..context import Context
 
 
 class RunStructure:
@@ -77,7 +77,7 @@ class RunTracker:
 
     def __init__(self, obj: "Compose", which_progress: str = "__progress__"):
         self._obj = obj
-        self._context: "BaseContext" = obj.context
+        self._context: "Context" = obj.context
 
         self._config: dict = {}
         self._progress = f"{obj.namex()}|{obj.idx()}|{which_progress}"

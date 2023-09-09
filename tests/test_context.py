@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from theflow.context.in_memory import SimpleMemoryContext
+from theflow.context import Context
 
 
 class X:
@@ -8,7 +8,7 @@ class X:
         self.x = 10
 
 
-class TestSimpleMemoryContext(TestCase):
+class TestContext(TestCase):
     def test_thread_safe(self):
         """Test if the memory context is thread safe"""
         import threading
@@ -18,7 +18,7 @@ class TestSimpleMemoryContext(TestCase):
             context.set("b", 2)
             context.set("c", 3)
 
-        context = SimpleMemoryContext()
+        context = Context()
         threads = []
         for _ in range(10):
             t = threading.Thread(target=run, args=(context,))
@@ -44,8 +44,7 @@ class TestSimpleMemoryContext(TestCase):
             context.set("c", 3)
             context.set("d", X())
 
-        context = SimpleMemoryContext()
-        context.activate_multiprocessing()
+        context = Context()
         processes = []
         for _ in range(10):
             p = multiprocessing.Process(target=run, args=(context,))
@@ -69,8 +68,7 @@ class TestSimpleMemoryContext(TestCase):
             context.set("b", 2)
             context.set("c", 3)
 
-        context = SimpleMemoryContext()
-        context.activate_multiprocessing()
+        context = Context()
         processes = []
         for _ in range(10):
             p = multiprocessing.Process(target=run, args=(context,))

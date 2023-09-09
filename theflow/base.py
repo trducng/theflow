@@ -19,7 +19,7 @@ from typing import (
 
 from . import settings
 from .config import Config, ConfigProperty
-from .context import BaseContext
+from .context import Context
 from .exceptions import InvalidNodeDefinition, InvalidParamDefinition
 from .runs.base import RunTracker
 from .utils.modules import import_dotted_string, init_object, serialize
@@ -515,7 +515,7 @@ class Compose(metaclass=MetaCompose):
         self._ff_params: List[str] = []
         self._ff_nodes: List[str] = []
         self._ff_config: Optional[Config] = None
-        self._ff_context: Optional[BaseContext] = None
+        self._ff_context: Optional[Context] = None
 
         # collect
         self._ff_params, self._ff_nodes = self._collect_registered_params_and_nodes()
@@ -654,10 +654,10 @@ class Compose(metaclass=MetaCompose):
     def __str__(self):
         return f"{self.__class__.__name__} (nodes: {self._ff_nodes})"
 
-    def _get_context(self) -> Optional[BaseContext]:
+    def _get_context(self) -> Optional[Context]:
         return self._ff_context
 
-    def _set_context(self, context: BaseContext) -> None:
+    def _set_context(self, context: Context) -> None:
         self._ff_context = context
         for node in self._ff_nodes:
             if isinstance(getattr(self, node), Compose):

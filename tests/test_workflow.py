@@ -54,14 +54,6 @@ class TestWorkflow(TestCase):
 
     def test_multiprocessing_context_contains_child_processes(self):
         flow = MultiprocessingWorkFlow()
-        flow.context.activate_multiprocessing()
         output = flow(1, times=10)
-        flow.context.deactivate_multiprocessing()
         self.assertEqual(output, 20)
         self.assertIn(".increment_by[1]", flow.last_run.logs(name=None))
-
-    def test_multiprocessing_context_doesnt_contain_child_processes_not_activated(self):
-        flow = MultiprocessingWorkFlow()
-        output = flow(1, times=10)
-        self.assertEqual(output, 20)
-        self.assertNotIn(".increment[1]", flow.last_run.logs(name=None))
