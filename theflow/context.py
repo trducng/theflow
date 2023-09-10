@@ -1,6 +1,6 @@
 from typing import Any, Optional
 
-from . import settings
+from .settings import settings
 from .utils.modules import init_object
 
 

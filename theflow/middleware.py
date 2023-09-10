@@ -153,7 +153,7 @@ class CachingMiddleware(Middleware):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        from . import settings
+        from .settings import settings
         from .utils.modules import init_object
 
         self._cache = init_object(settings.CACHE, safe=False)

@@ -17,11 +17,11 @@ from typing import (
     cast,
 )
 
-from . import settings
 from .config import Config, ConfigProperty
 from .context import Context
 from .exceptions import InvalidNodeDefinition, InvalidParamDefinition
 from .runs.base import RunTracker
+from .settings import settings
 from .utils.modules import import_dotted_string, init_object, serialize
 from .utils.pretties import reindent_docstring, unflatten_dict
 from .utils.typings import (
