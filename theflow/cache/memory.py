@@ -37,7 +37,8 @@ class MemoryCache(BaseCache):
             MSG_STORE[uid] = MANAGERS[uid].dict()
 
     def add(self, key: str, value: Any, timeout: Optional[int] = None) -> None:
-        logger.info(f"Add: Timeout value ({timeout}) is ignored for memory cache")
+        if timeout is not None:
+            logger.info(f"Add: Timeout value ({timeout}) is ignored for memory cache")
         with LOCKS[self.uid]:
             if key not in MSG_STORE[self.uid]:
                 MSG_STORE[self.uid][key] = value
@@ -52,14 +53,16 @@ class MemoryCache(BaseCache):
                 del MSG_STORE[self.uid][key]
 
     def set(self, key: str, value: Any, timeout: Optional[int] = None) -> None:
-        logger.info(f"Set: Timeout value ({timeout}) is ignored for memory cache")
+        if timeout is not None:
+            logger.info(f"Set: Timeout value ({timeout}) is ignored for memory cache")
         with LOCKS[self.uid]:
             MSG_STORE[self.uid][key] = value
 
     def touch(self, key: str, timeout: Optional[int] = None) -> None:
-        logger.info(
-            f"Touch ({key}): Timeout value ({timeout}) is ignored for memory cache"
-        )
+        if timeout is not None:
+            logger.info(
+                f"Touch ({key}): Timeout value ({timeout}) is ignored for memory cache"
+            )
 
     def clear(self) -> None:
         with LOCKS[self.uid]:
