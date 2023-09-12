@@ -52,6 +52,7 @@ class empty:
 
 
 ParamAttribute = TypeVar("ParamAttribute")
+NodeAttribute = TypeVar("NodeAttribute", bound="Compose")
 
 
 class Param(Generic[ParamAttribute]):
@@ -245,15 +246,15 @@ class Param(Generic[ParamAttribute]):
         return export
 
 
-class Node:
+class Node(Generic[NodeAttribute]):
     """Control the behavior of a node in a Compose"""
 
     def __init__(
         self,
-        default: Union[Type["empty"], Type["Compose"]] = empty,
+        default: Union[Type["empty"], Type[NodeAttribute]] = empty,
         default_kwargs: Optional[Dict[str, Any]] = None,
         default_callback: Optional[
-            Callable[[Optional["Compose"], Optional[Type["Compose"]]], "Compose"]
+            Callable[[Optional["Compose"], Optional[Type["Compose"]]], NodeAttribute]
         ] = None,
         depends_on: Optional[Union[str, List[str]]] = None,
         no_cache: bool = False,
@@ -261,7 +262,7 @@ class Node:
         input: Union[Type["empty"], Dict[str, Any]] = empty,
         output: Any = empty,
     ):
-        self._default = cast("Compose", default)
+        self._default: Type[NodeAttribute] = cast(Type[NodeAttribute], default)
         self._default_kwargs: dict = default_kwargs or {}
         self._default_callback = default_callback
         self._help = help
@@ -285,7 +286,7 @@ class Node:
 
     def __get__(
         self, obj: Optional["Compose"], type_: Optional[Type["Compose"]] = None
-    ) -> "Compose":
+    ) -> NodeAttribute:
         if obj is None:
             if self._default_callback:
                 return self._default_callback(obj, type_)
@@ -317,7 +318,7 @@ class Node:
         if not isinstance(obj.__ff_nodes__[self._name], Compose):
             raise ValueError(f"Node {obj.__class__}.{self._name} is not a Compose")
 
-        return obj.__ff_nodes__[self._name]
+        return cast(NodeAttribute, obj.__ff_nodes__[self._name])
 
     def _calculate_from_depends_on(
         self, obj: "Compose", type_: Optional[Type["Compose"]] = None
@@ -348,7 +349,7 @@ class Node:
                         )
                 break
 
-    def __set__(self, obj: "Compose", value: "Compose"):
+    def __set__(self, obj: "Compose", value: NodeAttribute):
         if not isinstance(value, Compose):
             raise ValueError(f"Node can only be used with Compose, got {type(value)}")
 
