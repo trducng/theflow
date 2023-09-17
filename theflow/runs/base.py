@@ -9,6 +9,8 @@ if TYPE_CHECKING:
     from ..base import Compose
     from ..context import Context
 
+from ..storage import storage
+
 
 class RunStructure:
     """The structure of a run directory"""
@@ -141,25 +143,12 @@ class RunTracker:
         return self.logs(name=name)["output"]
 
     def persist(self):
-        """Persist the run result to a store
-
-        Args:
-            store_result: the store to persist the result
-            run_id: the id of the run
-        """
-        store_result = self._obj.config.store_result
-        run_id = self._obj._ff_run_id
-        if store_result is not None and run_id:
-            path = Path(store_result) / run_id
-            path.mkdir(parents=True, exist_ok=True)
-
-            progress = self.logs(name=None)
-
-            # TODO: make this information extensible, allow people to modify it
-            with (path / "progress.pkl").open("wb") as fo:
-                pickle.dump(progress, fo)
-            with (path / "config.yaml").open("w") as fo:
-                yaml.safe_dump(self._config, fo)
+        """Persist the run result to a store"""
+        dir = storage.join(self._obj.config.store_result, self.id())
+        with storage.open(storage.join(dir, "progress.pkl"), "wb") as fo:
+            pickle.dump(self.logs(name=None), fo)
+        with storage.open(storage.join(dir, "config.yml"), "w") as fo:
+            yaml.dump(self._config, fo)
 
     def id(self) -> str:
         """Get the id of the run

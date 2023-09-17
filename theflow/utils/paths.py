@@ -5,8 +5,9 @@ from typing import List, Optional, Union
 THEFLOW_DIR = ".theflow"
 
 
-def project_root(loc: Optional[Union[str, Path]]) -> Optional[Path]:
-    """Get the root directory of the project (contains .git/)
+def project_root(loc: Optional[Union[str, Path]] = None) -> Path:
+    """Get the root directory of the project (contains .git/). Return cwd if .git/
+    doesn't exist
 
     Args:
         loc: the location to start searching for the root directory. If None,
@@ -23,7 +24,7 @@ def project_root(loc: Optional[Union[str, Path]]) -> Optional[Path]:
             return loc
         loc = loc.parent
 
-    return None
+    return Path.cwd()
 
 
 def get_theflow_path(loc: Optional[Union[str, Path]]) -> Optional[Path]:
@@ -45,7 +46,9 @@ def get_theflow_path(loc: Optional[Union[str, Path]]) -> Optional[Path]:
     return None
 
 
-def get_or_create_theflow_path(loc: Union[None, str, Path] = None) -> Path:
+def default_theflow_path(
+    loc: Union[None, str, Path] = None, create: bool = False
+) -> Path:
     """Get the theflow directory (.theflow/) or create it if not exists
 
     It travels up the directory tree until it finds the theflow directory. If not
@@ -56,6 +59,7 @@ def get_or_create_theflow_path(loc: Union[None, str, Path] = None) -> Path:
     Args:
         loc: the location to start searching for the theflow directory. If None,
             assume the current working directory
+        create: whether to create the theflow directory if not exists
 
     Returns:
         the theflow directory
@@ -67,13 +71,10 @@ def get_or_create_theflow_path(loc: Union[None, str, Path] = None) -> Path:
     if flow_path is not None:
         return flow_path
 
-    project_root_path = project_root(loc)
-    if project_root_path is None:
-        flow_path = Path.cwd() / THEFLOW_DIR
-    else:
-        flow_path = project_root_path / THEFLOW_DIR
+    flow_path = project_root(loc) / THEFLOW_DIR
+    if create:
+        flow_path.mkdir(exist_ok=True, parents=True)
 
-    flow_path.mkdir(exist_ok=True, parents=True)
     return flow_path
 
 

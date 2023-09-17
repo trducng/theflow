@@ -9,7 +9,7 @@ from .utils.modules import import_dotted_string
 
 DEFAULT_CONFIG = {
     # don't store the result if None
-    "store_result": "{{ theflow.callbacks.store_result__project_root }}",
+    "store_result": "{{ theflow.callbacks.store_result__pipeline_name }}",
     "run_id": "{{ theflow.callbacks.run_id__timestamp }}",
     "compose_name": "{{ theflow.callbacks.compose_name__class_name }}",
 }

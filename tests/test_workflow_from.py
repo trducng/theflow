@@ -1,8 +1,8 @@
 import shutil
-from pathlib import Path
 from unittest import TestCase
 
 from theflow.base import Compose
+from theflow.storage import storage
 
 
 class IncrementBy(Compose):
@@ -50,7 +50,9 @@ class TestWorkflowFrom(TestCase):
         output = pipeline2(
             y=10,
             _ff_from=".step2",
-            _ff_from_run=Path(pipeline2.config.store_result) / pipeline.last_run.id(),
+            _ff_from_run=storage.url(
+                pipeline2.config.store_result, pipeline.last_run.id()
+            ),
         )
         self.assertEqual(pipeline2.last_run.logs(".step1")["status"], "cached")
         self.assertEqual(pipeline2.last_run.logs(".step2")["status"], "run")
