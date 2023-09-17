@@ -232,14 +232,14 @@ class Param(Generic[ParamAttribute]):
 
     def __persist_flow__(self):
         """Return the state in a way that can be initiated"""
-        type_ = f"{self.__module__}.{self.__class__.__qualname__}"
+        type_ = f"{self._owner.__module__}.{self._owner.__qualname__}"
         export: dict = {"__type__": type_}
 
         for key, value in self.to_dict().items():
             try:
                 serialized = serialize(value)
             except Exception as e:
-                logger.warn(f"Error exporting {type_}.{key}: {e}")
+                logger.debug(f"{type_}.{self._name}.{key}: {e}... skip")
                 serialized = serialize(empty)
             export[key] = serialized
 
@@ -394,14 +394,14 @@ class Node(Generic[NodeAttribute]):
 
     def __persist_flow__(self):
         """Return the state in a way that can be initiated"""
-        type_ = f"{self.__module__}.{self.__class__.__qualname__}"
+        type_ = f"{self._owner.__module__}.{self._owner.__qualname__}"
         export: dict = {"__type__": type_}
 
         for key, value in self.to_dict().items():
             try:
                 serialized = serialize(value)
             except Exception as e:
-                logger.warn(f"Error exporting {type_}.{key}: {e}")
+                logger.debug(f"{type_}.{self._name}.{key}: {e}... skip")
                 serialized = serialize(empty)
             export[key] = serialized
 

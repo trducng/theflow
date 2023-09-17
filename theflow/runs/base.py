@@ -140,26 +140,26 @@ class RunTracker:
         """
         return self.logs(name=name)["output"]
 
-    def persist(self, store_result: str, run_id: str):
+    def persist(self):
         """Persist the run result to a store
 
         Args:
             store_result: the store to persist the result
             run_id: the id of the run
         """
-        path = Path(store_result) / run_id
-        path.mkdir(parents=True, exist_ok=True)
+        store_result = self._obj.config.store_result
+        run_id = self._obj._ff_run_id
+        if store_result is not None and run_id:
+            path = Path(store_result) / run_id
+            path.mkdir(parents=True, exist_ok=True)
 
-        progress = self.logs(name=None)
+            progress = self.logs(name=None)
 
-        with (path / "progress.pkl").open("wb") as fo:
-            pickle.dump(progress, fo)
-        with (path / "input.pkl").open("wb") as fo:
-            pickle.dump(progress["."]["input"], fo)
-        with (path / "output.pkl").open("wb") as fo:
-            pickle.dump(progress["."]["output"], fo)
-        with (path / "config.yaml").open("w") as fo:
-            yaml.safe_dump(self._config, fo)
+            # TODO: make this information extensible, allow people to modify it
+            with (path / "progress.pkl").open("wb") as fo:
+                pickle.dump(progress, fo)
+            with (path / "config.yaml").open("w") as fo:
+                yaml.safe_dump(self._config, fo)
 
     def id(self) -> str:
         """Get the id of the run

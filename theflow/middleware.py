@@ -138,9 +138,7 @@ class TrackProgressMiddleware(Middleware):
         self.obj.log_progress(_ff_name, input=_input, output=_output)
 
         if self.obj.abs_pathx() == ".":
-            store_result = self.obj.config.store_result
-            if store_result is not None and self.obj._ff_run_id:
-                self.obj.last_run.persist(str(store_result), self.obj._ff_run_id)
+            self.obj.last_run.persist()
 
         return _output
 
