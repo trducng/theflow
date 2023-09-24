@@ -1,0 +1,24 @@
+---
+title: "theflow Documentation"
+sidebar: false
+---
+
+`theflow` aims for:
+
+_**Composable function**_: functions can be combined into more complex composite
+functions. Functions and params in composite functions can easily be switched
+and swapped.
+
+_**Pipeline tracability**_: input and output to a function can be logged and
+investigated.
+
+_**Fast execution**_: utilize cache whenever possible.
+
+_**Simple to run local**_: most of the pipeline building happen at local.
+Developers have as much freedom to design their desired pipelines. They are
+also equipped with tools and functionalities to help them arrive at the final
+pipeline.
+
+_**Simple to deploy to workflow orchestrator**_: once a production-ready
+pipeline has been made, developers can quickly deploy this pipeline to a matured
+production-grade pipeline execution system.
