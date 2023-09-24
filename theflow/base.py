@@ -17,7 +17,7 @@ from typing import (
     cast,
 )
 
-from .config import Config, ConfigProperty
+from .config import Config, ConfigProperty, DefaultConfig
 from .context import Context
 from .exceptions import InvalidNodeDefinition, InvalidParamDefinition
 from .runs.base import RunTracker
@@ -477,6 +477,7 @@ class Compose(metaclass=MetaCompose):
             "theflow.middleware.SkipComponentMiddleware",
         ]
 
+    Config = DefaultConfig
     config = ConfigProperty()
 
     _keywords = [

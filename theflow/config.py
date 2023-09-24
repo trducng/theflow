@@ -7,12 +7,12 @@ if TYPE_CHECKING:
 
 from .utils.modules import import_dotted_string
 
-DEFAULT_CONFIG = {
+
+class DefaultConfig:
     # don't store the result if None
-    "store_result": "{{ theflow.callbacks.store_result__pipeline_name }}",
-    "run_id": "{{ theflow.callbacks.run_id__timestamp }}",
-    "compose_name": "{{ theflow.callbacks.compose_name__class_name }}",
-}
+    store_result = "{{ theflow.callbacks.store_result__pipeline_name }}"
+    run_id = "{{ theflow.callbacks.run_id__timestamp }}"
+    compose_name = "{{ theflow.callbacks.compose_name__class_name }}"
 
 
 class ConfigGet:
@@ -79,15 +79,17 @@ class Config:
 
         store_result: "Path"
         run_id: str
+        compose_name: str
 
     def __init__(
         self,
         config: Optional[Union[dict, str]] = None,
         cls: Optional[Type["Compose"]] = None,
     ):
-        self._available_configs = set(DEFAULT_CONFIG.keys())
+        self._available_configs = {
+            key for key in DefaultConfig.__dict__.keys() if not key.startswith("_")
+        }
 
-        self.update(DEFAULT_CONFIG)
         if cls is not None:
             self.update(cls)
         if config:
