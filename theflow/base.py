@@ -15,6 +15,7 @@ from typing import (
     TypeVar,
     Union,
     cast,
+    overload,
 )
 
 from .config import Config, ConfigProperty, DefaultConfig
@@ -107,17 +108,34 @@ class Param(Generic[ParamAttribute]):
                 f"{self._qual_name}"
             )
 
+    def __str__(self):
+        text = ", ".join(
+            [
+                f"{key}={value}"
+                for key, value in self.to_dict().items()
+                if not key.startswith("_")
+            ]
+        )
+        return f"{self.__class__.__name__}({text})"
+
+    def __repr__(self):
+        return str(self)
+
+    @overload
+    def __get__(self, obj: None, type_: Optional[Type["Compose"]]) -> "Param":
+        ...
+
+    @overload
+    def __get__(
+        self, obj: "Compose", type_: Optional[Type["Compose"]]
+    ) -> ParamAttribute:
+        ...
+
     def __get__(
         self, obj: Optional["Compose"], type_: Optional[Type["Compose"]] = None
-    ) -> ParamAttribute:
+    ) -> Union[ParamAttribute, "Param"]:
         if obj is None:
-            if self._default_callback:
-                return self._default_callback(obj, type_)
-            if self._default == empty:
-                raise AttributeError(
-                    f"Parameter {self._name} is not set and has no default value"
-                )
-            return self._default
+            return self
 
         if not isinstance(obj, Compose):
             raise ValueError("Param can only be used with Compose")
@@ -284,17 +302,21 @@ class Node(Generic[NodeAttribute]):
         if self._output == empty and has_run_method:
             self._output = output_signature(default.run)  # type: ignore
 
+    @overload
+    def __get__(self, obj: None, type_: Optional[Type["Compose"]]) -> "Node":
+        ...
+
+    @overload
+    def __get__(
+        self, obj: "Compose", type_: Optional[Type["Compose"]]
+    ) -> NodeAttribute:
+        ...
+
     def __get__(
         self, obj: Optional["Compose"], type_: Optional[Type["Compose"]] = None
-    ) -> NodeAttribute:
+    ) -> Union[NodeAttribute, "Node"]:
         if obj is None:
-            if self._default_callback:
-                return self._default_callback(obj, type_)
-            if self._default == empty:
-                raise AttributeError(
-                    f"Node {self._name} is not set and has no default value"
-                )
-            return self._default(**self._default_kwargs)
+            return self
 
         if not isinstance(obj, Compose):
             raise ValueError("Node can only be used with Compose")
@@ -319,6 +341,19 @@ class Node(Generic[NodeAttribute]):
             raise ValueError(f"Node {obj.__class__}.{self._name} is not a Compose")
 
         return cast(NodeAttribute, obj.__ff_nodes__[self._name])
+
+    def __str__(self):
+        text = ", ".join(
+            [
+                f"{key}={value}"
+                for key, value in self.to_dict().items()
+                if not key.startswith("_")
+            ]
+        )
+        return f"{self.__class__.__name__}({text})"
+
+    def __repr__(self):
+        return str(self)
 
     def _calculate_from_depends_on(
         self, obj: "Compose", type_: Optional[Type["Compose"]] = None
@@ -381,7 +416,7 @@ class Node(Generic[NodeAttribute]):
     def to_dict(self) -> dict:
         """Return the internal state of a node as dict"""
         return {
-            "type": "node",
+            "__type__": "node",
             "default": self._default,
             "default_kwargs": self._default_kwargs,
             "default_callback": self._default_callback,
@@ -717,19 +752,21 @@ class Compose(metaclass=MetaCompose):
         """
         params, nodes = [], []
 
-        for each_cls in cls.mro():
-            for attr, attr_value in each_cls.__dict__.items():
-                if isinstance(attr_value, Node):
-                    nodes.append(attr)
-                elif isinstance(attr_value, Param):
-                    params.append(attr)
+        for attr in dir(cls):
+            if isinstance(getattr(cls, attr), Node):
+                nodes.append(attr)
+            elif isinstance(getattr(cls, attr), Param):
+                params.append(attr)
 
         return list(sorted(set(params))), list(sorted(set(nodes)))
 
     @classmethod
     @lru_cache
     def _protected_keywords(cls) -> Dict[str, type]:
-        """Return the protected keywords and the class that defines each of them"""
+        """Return the protected keywords and the class that defines each of them
+
+        This method will concatenate the `_keywords` of all classes in the mro.
+        """
         keywords = {}
         for each_cls in cls.mro():
             for keyword in getattr(each_cls, "__dict__", {}).get("_keywords", []):
@@ -819,17 +856,17 @@ class Compose(metaclass=MetaCompose):
         """
         params, nodes = {}, {}
 
-        for each_cls in cls.mro():
-            for attr, attr_value in each_cls.__dict__.items():
-                if isinstance(attr_value, Node) and attr not in nodes:
-                    value = attr_value.__persist_flow__()
-                    if isinstance(attr_value._default, type) and issubclass(
-                        attr_value._default, Compose
-                    ):
-                        value["default"] = attr_value._default.describe()  # type:ignore
-                    nodes[attr] = value
-                elif isinstance(attr_value, Param) and attr not in params:
-                    params[attr] = attr_value.__persist_flow__()
+        for attr in dir(cls):
+            attr_value = getattr(cls, attr)
+            if isinstance(attr_value, Node):
+                value = attr_value.__persist_flow__()
+                if isinstance(attr_value._default, type) and issubclass(
+                    attr_value._default, Compose
+                ):
+                    value["default"] = attr_value._default.describe()  # type:ignore
+                nodes[attr] = value
+            elif isinstance(attr_value, Param):
+                params[attr] = attr_value.__persist_flow__()
 
         return {
             "type": f"{cls.__module__}.{cls.__qualname__}",
@@ -884,7 +921,7 @@ class Compose(metaclass=MetaCompose):
             module, subpath = path.split(".", 1)
             return getattr(self, module).specs(subpath)
 
-        definition = self.__class__.__dict__[path]
+        definition = getattr(self.__class__, path)
         if not isinstance(definition, (Param, Node)):
             raise ValueError(f"{path} is not a param or a node")
 
@@ -894,7 +931,7 @@ class Compose(metaclass=MetaCompose):
         """Return the list of missing params and nodes"""
         params, nodes = [], []
         for attr in self._ff_params:
-            if self.__class__.__dict__[attr]._depends_on:
+            if getattr(self.__class__, attr)._depends_on:
                 continue
             try:
                 getattr(self, attr)
@@ -902,7 +939,7 @@ class Compose(metaclass=MetaCompose):
                 params.append(attr)
 
         for attr in self._ff_nodes:
-            if self.__class__.__dict__[attr]._depends_on:
+            if getattr(self.__class__, attr)._depends_on:
                 continue
             try:
                 child = getattr(self, attr)
@@ -950,9 +987,9 @@ class Compose(metaclass=MetaCompose):
         elif isinstance(obj, type) and issubclass(obj, Compose):
             func = obj.run
 
-        if specs["type"] == "param":
+        if specs["__type__"] == "param":
             return isinstance(obj, specs["type"])
-        elif specs["type"] == "node":
+        elif specs["__type__"] == "node":
             reference_input = specs["input"]
             reference_output = specs["output"]
             target_input = input_signature(func)

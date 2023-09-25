@@ -36,7 +36,10 @@ class ConfigGet:
 class ConfigProperty:
     """Serve as property to access the config from the pipeline instance"""
 
-    def __get__(self, obj: "Compose", obj_type: Type["Compose"]) -> Any:
+    def __get__(self, obj: Optional["Compose"], obj_type: Type["Compose"]) -> Any:
+        if obj is None:
+            return self
+
         if obj._ff_config is None:
             raise ValueError("ConfigProperty can only be accessed after initialization")
         return ConfigGet(obj._ff_config, obj)
