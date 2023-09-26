@@ -554,6 +554,9 @@ class Compose(metaclass=MetaCompose):
         self._ff_config: Config = Config(cls=self.__class__)
         self._ff_context: Optional[Context] = None
 
+        # Initialize temporary execution variables
+        self._variablex()
+
         # collect
         self._ff_params, self._ff_nodes = self._collect_registered_params_and_nodes()
 
@@ -576,9 +579,6 @@ class Compose(metaclass=MetaCompose):
         if not hasattr(self, "_ff_initializing"):
             # TODO: this work better if we formulate config and context as independent
             self._initialize()
-
-        # Initialize temporary execution variables
-        self._variablex()
 
     def _variablex(self):
         """Set temporary variables, only available during execution. Refresh when
