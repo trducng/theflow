@@ -526,6 +526,7 @@ class Compose(metaclass=MetaCompose):
         "dump",
         "flow_qualidx",
         "get_from_path",
+        "getx",
         "idx",
         "is_compatible",
         "last_run",
@@ -780,7 +781,7 @@ class Compose(metaclass=MetaCompose):
 
     def _prepare_child(self, child: "Compose", name: str):
         if self._ff_in_run:
-            child._ff_prefix = f"{self._ff_prefix}.{self._ff_name}"
+            child._ff_prefix = self.abs_pathx()
             child._ff_name = (
                 name
                 if name not in self._ff_childs_called
@@ -926,6 +927,15 @@ class Compose(metaclass=MetaCompose):
             raise ValueError(f"{path} is not a param or a node")
 
         return definition.to_dict()
+
+    def getx(self, path: str) -> Any:
+        """Get the Compose node or param based on path"""
+        path = path.strip(".")
+        if "." in path:
+            module, subpath = path.split(".", 1)
+            return getattr(self, module).getx(subpath)
+
+        return getattr(self, path)
 
     def missing(self) -> Dict[str, List[str]]:
         """Return the list of missing params and nodes"""

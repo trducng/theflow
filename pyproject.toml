@@ -3,7 +3,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-version = "0.4.3"
+version = "0.4.4"
 name = "theflow"
 authors = [{ name = "trducng", email = "trungduc1992@gmail.com" }]
 description = "A simple framework to build and run flows"
@@ -14,7 +14,7 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Development Status :: 2 - Pre-Alpha"
 ]
-dependencies = ["pyyaml"]
+dependencies = ["pyyaml", "diskcache"]
 
 [project.optional-dependencies]
 dev = ["coverage", "pytest", "pytest-cov", "black", "flake8", "mypy", "isort", "pre-commit", "notebook", "ipython", "build", "twine", "papermill"]
