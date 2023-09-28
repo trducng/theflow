@@ -1,4 +1,6 @@
 """Default setting for important variables"""
+import tempfile
+
 from theflow.utils.paths import default_theflow_path
 
 CONTEXT = {
@@ -6,7 +8,8 @@ CONTEXT = {
 }
 
 CACHE = {
-    "__type__": "theflow.cache.MemoryCache",
+    "__type__": "theflow.cache.FileCache",
+    "path": tempfile.mkdtemp(prefix="theflow_"),
 }
 
 STORAGE = {

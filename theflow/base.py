@@ -1049,6 +1049,49 @@ class Compose(metaclass=MetaCompose):
         return export
 
 
+class SessionCompose(Compose):
+    """Handle sesssion"""
+
+    def start_session(self):
+        self._ff_in_run = True
+
+        if not hasattr(self, "_ff_initializing"):
+            self._initialize()
+
+        if not self._ff_prefix:  # only root node has prefix as empty
+            # administrative setup
+            self._ff_run_id = self.config.run_id
+            self._ff_flow_name: str = self.config.compose_name
+            self.context.create_context(context=self.flow_qualidx())
+            self.context.set("run_id", self._ff_run_id, context=self.flow_qualidx())
+
+        self.context.create_context(context=self.qualidx(), exist_ok=True)
+
+    def __call__(self, *args, **kwargs):
+        if _ff_run_kwargs := kwargs.pop("_ff_run_kwargs", {}):
+            # TODO: another option is to communicate through context,
+            # because this is run-time parameter, it will not be persisted in the
+            # child nodes.
+            self.set_run(_ff_run_kwargs, temp=True)
+
+        if self.__ff_run_kwargs__:
+            kwargs.update(self.__ff_run_kwargs__)
+
+        if self.__ff_run_temp_kwargs__:
+            kwargs.update(self.__ff_run_temp_kwargs__)
+
+        output = (
+            self._middleware(*args, **kwargs)
+            if self._middleware
+            else self._run(*args, **kwargs)
+        )
+
+        return output
+
+    def end_session(self):
+        self._variablex()
+
+
 class ComposeProxy(Compose):
     """Wrap an object to be a step.
 
