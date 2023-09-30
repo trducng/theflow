@@ -1,8 +1,15 @@
+import sys
+from pathlib import Path
 from unittest import TestCase
 
 import pytest
 
 from theflow import Compose
+from theflow.utils.documentation import (
+    get_compose_documentation,
+    get_compose_documentation_from_module,
+    get_composes_from_module,
+)
 from theflow.utils.modules import (
     deserialize,
     import_dotted_string,
@@ -10,6 +17,8 @@ from theflow.utils.modules import (
     serialize,
 )
 from theflow.utils.paths import is_name_matched, is_parent_of_child
+
+from .assets.sample_flow import Plus, Sum1
 
 
 class TestNameMatching(TestCase):
@@ -299,3 +308,30 @@ class TestDeserialize(TestCase):
         self.assertEqual(serialize(Any), "{{ typing.Any }}")
         self.assertEqual(serialize(Union[str, int]), "{{ typing.Union[str, int] }}")
         self.assertEqual(serialize(list[Compose]), "{{ list[theflow.base.Compose] }}")
+
+
+class TestDocumentationUtility(TestCase):
+    def test_get_compose_documentation(self):
+        """Test get compose full information: docstring, ndoes, params"""
+        sum1_doc = get_compose_documentation(Sum1)
+        assert sum1_doc["desc"] == ""
+        assert sum1_doc["nodes"] == {}
+
+        plus_doc = get_compose_documentation(Plus)
+        assert plus_doc["desc"] == "Plus calculation"
+        assert plus_doc["params"]["a"]["desc"] == "The `a` number"
+        assert plus_doc["params"]["a"]["default"] == 100
+        assert plus_doc["params"]["e"]["desc"] == "The `e` number"
+        assert plus_doc["nodes"]["y"]["desc"] == "The `y` node"
+        assert plus_doc["nodes"]["z"]["depends_on"] == ["x"]
+
+    def test_get_composes_from_module(self):
+        """Test getting all compose from module"""
+        sys.path.append(str(Path(__file__).parent))
+        composes = get_composes_from_module("assets.sample_flow")
+        assert len(composes) == 3
+
+    def test_get_all_compose_documentation_from_module(self):
+        sys.path.append(str(Path(__file__).parent))
+        definition = get_compose_documentation_from_module("assets.sample_flow")
+        assert len(definition) == 3

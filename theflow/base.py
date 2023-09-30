@@ -2,6 +2,7 @@ import logging
 from abc import abstractmethod
 from collections import defaultdict
 from functools import lru_cache
+from typing import _GenericAlias  # type: ignore
 from typing import (
     Any,
     Callable,
@@ -36,15 +37,18 @@ from .visualization import trace_pipelne_run
 logger = logging.getLogger(__name__)
 
 
-def contains_composable_in_annotation(annotation) -> bool:
+def is_node_type(annotation) -> bool:
     """Return True if the annotation contains Compose"""
     if is_union_type(annotation):
-        return any(contains_composable_in_annotation(a) for a in annotation.__args__)
+        return any(is_node_type(a) for a in annotation.__args__)
     if isinstance(annotation, ForwardRef):
         annotation = annotation._evaluate(globals(), locals(), frozenset())
-        return contains_composable_in_annotation(annotation)
+        return is_node_type(annotation)
     if isinstance(annotation, type):
-        return issubclass(annotation, Compose)
+        return issubclass(annotation, Compose) or issubclass(annotation, Node)
+    if isinstance(annotation, _GenericAlias):
+        if issubclass(annotation.__origin__, Node):
+            return True
     return False
 
 
@@ -451,7 +455,7 @@ class MetaCompose(type):
                 continue
             if name in attrs and isinstance(attrs[name], (Node, Param)):
                 continue
-            if contains_composable_in_annotation(value):
+            if is_node_type(value):
                 desc = Node(default=attrs[name]) if name in attrs else Node()
             else:
                 desc = Param(default=attrs[name]) if name in attrs else Param()

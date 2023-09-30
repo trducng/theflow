@@ -1,6 +1,7 @@
 import importlib
 import inspect
 import logging
+import sys
 from typing import Any, Dict, Optional, Type
 
 logger = logging.getLogger(__name__)
@@ -32,8 +33,16 @@ def import_dotted_string(
 
         return allowed_modules[dotted_string]
 
-    # TODO: cached import
     module_name, obj_name = dotted_string.rsplit(".", 1)
+    module = sys.modules.get(module_name)
+
+    if not (
+        module
+        and (spec := getattr(module, "__spec__", None))
+        and getattr(spec, "_initializing", False) is False
+    ):
+        module = importlib.import_module(module_name)
+
     module = importlib.import_module(module_name)
     return getattr(module, obj_name)
 
