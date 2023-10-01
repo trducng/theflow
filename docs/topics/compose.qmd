@@ -1,0 +1,67 @@
+---
+title: "Compose"
+highlight-style: github
+code-annotations: select
+---
+
+## Node and Param related functionalities
+
+### Access node and param
+
+Nodes and params can be accessed with normal Python dot notation from the
+parent. This also applies to nested node and params of child nodes as well (e.g.
+`obj.node1.node2.param1`).
+
+One can also access with `.get_from_path(path: str)`, where path is a
+`.`-delimited path. This method is convenient in case one has a string
+representation of a param or node path.
+
+### Get missing nodes and params
+
+To get the list of nodes and params that are required but missing, one can use
+`.missing()` method. It will return nodes and params that do not have default
+value or default callback set, and also are not set by users. Once called, this
+method will return a dictionary:
+
+```
+{
+  "params": [],   # name of missing params (list[str])
+  "nodes": [],    # name of missing nodes (list[str])
+}
+```
+
+### Get specification about a param or a node
+
+One can get the Node or Param definition of a Compose object with `.spec(path:
+str)`. It can also access definition within nested nodes. Just use `.`-delimited
+path.
+
+Example, `obj.spec(".node1.node2.param1")` will return the Param spec of nested
+node1's node2's param1.
+
+## Compose internals
+
+### Declare and list protected keywords
+
+Some names are not allowed as node or param names, because they might conflict
+with important attributes and methods of Compose, like `config`, `set`...
+
+When you create your own Compose, if you want to avoid any naming conflict with
+the subclass, you can reserve the names in `_keywords`. This will raise error
+when future subclasses use one or more of those keywords as node and param
+names.
+
+You can list a Compose's keywords with `cls._protected_keywords()`. This will
+return a dictionary of {keyword-name: class-that-defines-that-keyword}. It will
+traverse mro and look for `_keywords`, so don't worry about the child class
+`_keywords` replacing parent class `_keywords`.
+
+```python
+class A(Compose):
+    _keywords = ["x", "y"]
+
+class B(A):
+    _keywords = ["m"]
+
+B._protected_keywords()   # {"x": A, "y": A, "m": B}
+```

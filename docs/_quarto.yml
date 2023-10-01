@@ -7,29 +7,52 @@ website:
     left:
       - text: "Tutorials"
         file: tutorials/tutorial01.qmd
+      - text: "Topics"
+        file: topics/compose.qmd
+    tools:
+      - icon: github
+        href: https://github.com/trducng/theflow
   sidebar:
     - title: "Tutorials"
       style: "floating"
       border: true
-      tools:
-        - icon: github
-          href: https://github.com/trducng/theflow
       contents:
         - section: "Writing your first flow"
           contents:
             - tutorials/tutorial01.qmd
             - tutorials/tutorial02.qmd
             - tutorials/tutorial03.qmd
+    - title: "Topics"
+      style: "floating"
+      border: true
+      tools:
+        - icon: github
+          href: https://github.com/trducng/theflow
+      contents:
+        - section: "Logic layer"
+          contents:
+            - topics/compose.qmd
+            - topics/param.qmd
+            - topics/node.qmd
+            - topics/config.qmd
+            - topics/middleware.qmd
+        - section: "Storage layer"
+          contents:
+            - topics/cache.qmd
+            - topics/storage.qmd
+        - section: "Setting layer"
+          contents:
+            - topics/settings.qmd
+            - topics/dashboard.qmd
   page-navigation: true
   page-footer:
-    center: "Copyright 2023, trducng"
-    right:
-      - icon: github
-        href: https://github.com/trducng
+    center:
+      - text: "Copyright 2023, trducng"
 
 format:
   html:
     theme:
       light: cosmo
       dark: solar
+    css: styles.css
     toc: true
