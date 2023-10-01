@@ -10,6 +10,7 @@ from theflow.utils.documentation import (
     get_compose_documentation_from_module,
     get_composes_from_module,
 )
+from theflow.utils.hashes import naivehash
 from theflow.utils.modules import (
     deserialize,
     import_dotted_string,
@@ -335,3 +336,88 @@ class TestDocumentationUtility(TestCase):
         sys.path.append(str(Path(__file__).parent))
         definition = get_compose_documentation_from_module("assets.sample_flow")
         assert len(definition) == 4
+
+
+class A:
+    a = 10
+    y = 11
+
+    def __init__(self, a, b):
+        self.a = a
+        self.b = b
+
+
+class B:
+    a = 10
+    y = 11
+
+    def __init__(self, a, b):
+        self.a = a
+        self.b = b
+
+
+class TestNaiveHash(TestCase):
+    to_check = [
+        0,
+        1,
+        1.0,
+        True,
+        False,
+        None,
+        "hello",
+        "1",
+        [],
+        [1],
+        [1, 2],
+        [2, 1],
+        {},
+        {1: 2},
+        {"1": 2},
+        {(1, 2): A(1, 2)},
+        set(),
+        {1, 2},
+        {2, 1},
+        {"1", "2"},
+        A,
+        B,
+        A(1, 2),
+        B(1, 2),
+    ]
+
+    def test_hash_scalar_type(self):
+        """Test work with int, float, bool, string"""
+        self.assertEqual(naivehash()(0), "d6c6d6b1491707dc57506e7dfb7cccba")
+        self.assertEqual(naivehash()(1), "67af089a4426724964d7927610a9c42f")
+        self.assertEqual(naivehash()(1.0), "66d5a3a7b42af4fadff4e4a8786be2cd")
+        self.assertEqual(naivehash()(True), "4d81551eb15eacaed010de3a792efad4")
+        self.assertEqual(naivehash()(False), "5e7c9fef3bfb150080ba7884ab0e20a3")
+        self.assertEqual(naivehash()(None), "825f629c731075490e37c1f220781b68")
+        self.assertEqual(naivehash()("hello"), "006892b196dd42e56ae296d46ba796f9")
+        self.assertEqual(naivehash()("1"), "751d4a188f5eeb3ad70989aefad475a3")
+
+    def test_hash_list_tuple_dict_set_type(self):
+        self.assertEqual(naivehash()([]), "61699d460f9e05f95aae56e73b86e742")
+        self.assertEqual(naivehash()([1]), "5cc551296cd2d79ad6ace14e7bac72c4")
+        self.assertEqual(naivehash()([1, 2]), "cc0f2d78211dcda8bfd4ef80930c7982")
+        self.assertEqual(naivehash()([]), "61699d460f9e05f95aae56e73b86e742")
+        self.assertEqual(naivehash()([1]), "5cc551296cd2d79ad6ace14e7bac72c4")
+        self.assertEqual(naivehash()([1, 2]), "cc0f2d78211dcda8bfd4ef80930c7982")
+        self.assertEqual(naivehash()([2, 1]), "1c2bf5865c9df59d93bbcbe538b8663b")
+        self.assertEqual(naivehash()({}), "03f7e77c0cba63ae7a9c75ccfbfe33e0")
+        self.assertEqual(naivehash()({1: 2}), "b797b7645bcef16d8fce546ca5d1dc03")
+        self.assertEqual(naivehash()({"1": 2}), "7296fb42d9464d15a65e71f671b2e480")
+        self.assertEqual(
+            naivehash()({(1, 2): A(1, 2)}), "4aa5f2bc684976b1d4bfa42dda8d2834"
+        )
+        self.assertEqual(naivehash()(set()), "9ce70b11fda866035eb013c8de5b8692")
+        self.assertEqual(naivehash()({1, 2}), "84a6c62c58e7728fde564a8e3d295668")
+        self.assertEqual(naivehash()({2, 1}), "84a6c62c58e7728fde564a8e3d295668")
+        self.assertEqual(naivehash()({"1", "2"}), "26005d20f5d6a994175dc966c7892fae")
+
+    def test_hash_python_cls(self):
+        self.assertEqual(naivehash()(A), "70b407430beecc9bc74c1a5bc4fc1c96")
+        self.assertEqual(naivehash()(B), "660295ea053da2539041edc18bf54a3b")
+
+    def test_hash_python_instance(self):
+        self.assertEqual(naivehash()(A(1, 2)), "8ab6e307217edbc9e6df487b12780903")
+        self.assertEqual(naivehash()(B(1, 2)), "3ea105db0fac432569deb2ea74eea8e5")

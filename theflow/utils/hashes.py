@@ -22,19 +22,35 @@ class naivehash:
         Returns:
             hash of the object
         """
-        if isinstance(obj, (str, int, float, bool)):
-            self.hash_func.update(str(obj).encode())
+        type_ = f"{chr(0)}{type(obj)}{chr(0)}"
+        if isinstance(obj, (str, int, float, bool)) or obj is None:
+            self.hash_func.update(f"|{type_}|{obj}".encode())
         elif isinstance(obj, (tuple, list)):
-            for item in obj:
+            self.update(f"|{type_}|")
+            for idx, item in enumerate(obj):
+                self.update(f"|{type_}{idx}|")
+                self.update(item)
+        elif isinstance(obj, set):
+            self.update(f"|{type_}|")
+            for idx, item in enumerate(sorted(obj)):
+                self.update(f"|{type_}{idx}|")
                 self.update(item)
         elif isinstance(obj, dict):
-            for key in sorted(obj):
+            self.update(f"|{type_}|")
+            for idx, key in enumerate(sorted(obj)):
+                self.update(f"|{type_}{idx}|")
                 self.update(key)
                 self.update(obj[key])
         else:
-            for attr in dir(obj):
+            path = ""
+            path += obj.__module__ if hasattr(obj, "__module__") else ""
+            path += obj.__name__ if hasattr(obj, "__name__") else ""
+            self.update(f"|{type_}|{path}|")
+
+            for idx, attr in enumerate(sorted(dir(obj))):
                 if attr.startswith("_"):
                     continue
+                self.update(f"|{type_}{idx}|")
                 self.update(attr)
                 self.update(getattr(obj, attr))
 
