@@ -510,17 +510,10 @@ class Compose(metaclass=MetaCompose):
     Compose is explicit.
     """
 
-    class Middleware:
-        middleware = [
-            "theflow.middleware.TrackProgressMiddleware",
-            "theflow.middleware.SkipComponentMiddleware",
-        ]
-
     Config = DefaultConfig
     config = ConfigProperty()
 
     _keywords = [
-        "Middleware",
         "Config",
         "abs_pathx",
         "apply",
@@ -572,11 +565,21 @@ class Compose(metaclass=MetaCompose):
             self.set(params)
         self._ff_init_called = True
 
+        # collect middleware
+        middleware_section: str = self.config.middleware_section
+        middleware_setting = settings.MIDDLEWARE
+        if middleware_section not in middleware_setting:
+            raise ValueError(
+                f'Middleware section "{middleware_section}" not found in settings'
+            )
+        middleware_switches = self.config.middleware_switches
+
         self._middleware = None
-        if middlware_cfg := getattr(self, "Middleware"):
-            next_call = self._run
-            for cls_name in reversed(middlware_cfg.middleware):
-                # TODO: handle safe import
+        if middlware_cfg := middleware_setting[middleware_section]:
+            next_call = self._runx
+            for cls_name in reversed(middlware_cfg):
+                if not middleware_switches.get(cls_name, True):
+                    continue
                 cls = import_dotted_string(cls_name, safe=False)
                 next_call = cls(obj=self, next_call=next_call)
             self._middleware = next_call
@@ -635,9 +638,9 @@ class Compose(metaclass=MetaCompose):
         """Return the qualified execution flow id"""
         return f"{self.namex()}|{self.idx()}"
 
-    def _run(self, *args, **kwargs):
+    def _runx(self, *args, **kwargs):
         """Subclass to handle pre- and post- run"""
-        # TODO: can remove self._run
+        self._ff_in_run = True
         return self.run(*args, **kwargs)
 
     def _initialize_nodes(self):
@@ -649,8 +652,6 @@ class Compose(metaclass=MetaCompose):
 
     def __call__(self, *args, **kwargs):
         """Run the flow, accepting extra parameters for routing purpose"""
-        self._ff_in_run = True
-
         if not hasattr(self, "_ff_initializing"):
             self._initialize()
 
@@ -679,7 +680,7 @@ class Compose(metaclass=MetaCompose):
             output = (
                 self._middleware(*args, **kwargs)
                 if self._middleware
-                else self._run(*args, **kwargs)
+                else self._runx(*args, **kwargs)
             )
         except Exception as e:
             raise e from None
@@ -1067,8 +1068,6 @@ class SessionCompose(Compose):
     """Handle sesssion"""
 
     def start_session(self):
-        self._ff_in_run = True
-
         if not hasattr(self, "_ff_initializing"):
             self._initialize()
 
@@ -1097,7 +1096,7 @@ class SessionCompose(Compose):
         output = (
             self._middleware(*args, **kwargs)
             if self._middleware
-            else self._run(*args, **kwargs)
+            else self._runx(*args, **kwargs)
         )
 
         return output
@@ -1134,9 +1133,19 @@ class ComposeProxy(Compose):
             # wrapper
             return callable_obj(*args, **kwargs)
 
-        if middlware_cfg := getattr(self, "Middleware"):
+        middleware_section: str = self.config.middleware_section
+        middleware_setting = settings.MIDDLEWARE
+        if middleware_section not in middleware_setting:
+            raise ValueError(
+                f'Middleware section "{middleware_section}" not found in settings'
+            )
+        middleware_switches = self.config.middleware_switches
+
+        if middlware_cfg := middleware_setting[middleware_section]:
             next_call = wrapper
-            for cls_name in reversed(middlware_cfg.middleware):
+            for cls_name in reversed(middlware_cfg):
+                if not middleware_switches.get(cls_name, True):
+                    continue
                 cls = import_dotted_string(cls_name, safe=False)
                 next_call = cls(obj=self, next_call=next_call)
             return next_call

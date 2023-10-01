@@ -16,3 +16,11 @@ STORAGE = {
     "__type__": "theflow.storage.LocalStorage",
     "prefix": str(default_theflow_path()),
 }
+
+MIDDLEWARE = {
+    "default": [
+        "theflow.middleware.TrackProgressMiddleware",
+        "theflow.middleware.CachingMiddleware",
+        "theflow.middleware.SkipComponentMiddleware",
+    ]
+}

@@ -18,7 +18,7 @@ from theflow.utils.modules import (
 )
 from theflow.utils.paths import is_name_matched, is_parent_of_child
 
-from .assets.sample_flow import Plus, Sum1
+from .assets.sample_flow import Func, Sum1
 
 
 class TestNameMatching(TestCase):
@@ -317,8 +317,8 @@ class TestDocumentationUtility(TestCase):
         assert sum1_doc["desc"] == ""
         assert sum1_doc["nodes"] == {}
 
-        plus_doc = get_compose_documentation(Plus)
-        assert plus_doc["desc"] == "Plus calculation"
+        plus_doc = get_compose_documentation(Func)
+        assert plus_doc["desc"] == "Function calculation"
         assert plus_doc["params"]["a"]["desc"] == "The `a` number"
         assert plus_doc["params"]["a"]["default"] == 100
         assert plus_doc["params"]["e"]["desc"] == "The `e` number"
@@ -329,9 +329,9 @@ class TestDocumentationUtility(TestCase):
         """Test getting all compose from module"""
         sys.path.append(str(Path(__file__).parent))
         composes = get_composes_from_module("assets.sample_flow")
-        assert len(composes) == 3
+        assert len(composes) == 4
 
     def test_get_all_compose_documentation_from_module(self):
         sys.path.append(str(Path(__file__).parent))
         definition = get_compose_documentation_from_module("assets.sample_flow")
-        assert len(definition) == 3
+        assert len(definition) == 4

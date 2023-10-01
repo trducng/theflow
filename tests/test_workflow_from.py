@@ -8,6 +8,10 @@ from theflow.storage import storage
 class IncrementBy(Compose):
     x: int
 
+    class Config:
+        store_result = ".test_temporary"
+        middleware_switches = {"theflow.middleware.CachingMiddleware": False}
+
     def run(self, y):
         return self.x + y
 
@@ -19,6 +23,7 @@ class SequentialPipeline(Compose):
 
     class Config:
         store_result = ".test_temporary"
+        middleware_switches = {"theflow.middleware.CachingMiddleware": False}
 
     def run(self, y):
         y = self.step1(y)

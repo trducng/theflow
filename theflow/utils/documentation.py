@@ -80,12 +80,15 @@ def get_composes_from_module(module_path: str, recursive: bool = True) -> dict:
 
     for name, obj in inspect.getmembers(module):
         if inspect.isclass(obj) and issubclass(obj, Compose) and obj != Compose:
-            composes[f"{module_path}.{name}"] = obj
+            if not obj.__module__.startswith(module_path):
+                # irrelevant import
+                continue
+            composes[f"{obj.__module__}.{obj.__name__}"] = obj
 
     if recursive and "__path__" in dir(module):
         for _, name, _ in pkgutil.iter_modules(module.__path__):
             composes.update(
-                get_composes_from_module(f"{module_path}.{name}"), recursive=True
+                get_composes_from_module(f"{module_path}.{name}", recursive=True)
             )
 
     return composes

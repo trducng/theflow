@@ -7,12 +7,22 @@ if TYPE_CHECKING:
 
 from .utils.modules import import_dotted_string
 
+_aggregated_dict = {"middleware_switches"}
+
 
 class DefaultConfig:
     # don't store the result if None
     store_result = "{{ theflow.callbacks.store_result__pipeline_name }}"
     run_id = "{{ theflow.callbacks.run_id__timestamp }}"
     compose_name = "{{ theflow.callbacks.compose_name__class_name }}"
+
+    # middleware
+    middleware_section = "default"
+    middleware_switches = {
+        "theflow.middleware.TrackProgressMiddleware": True,
+        "theflow.middleware.SkipComponentMiddleware": True,
+        "theflow.middleware.CachingMiddleware": True,
+    }
 
 
 class ConfigGet:
@@ -83,6 +93,8 @@ class Config:
         store_result: "Path"
         run_id: str
         compose_name: str
+        middleware_section: str
+        middleware_switches: dict[str, bool]
 
     def __init__(
         self,
@@ -117,8 +129,14 @@ class Config:
             ):
                 # parse to the callback function
                 dotted_string = value[2:-2].strip()
-                # TODO: handle safe import
                 value = import_dotted_string(dotted_string, safe=False)
+
+            if key in _aggregated_dict:
+                if not isinstance(value, dict):
+                    raise ValueError(f"Config {key} must be a dict, got {type(value)}")
+                original_value = getattr(self, key, {})
+                original_value.update(value)
+                value = original_value
 
             setattr(self, key, value)
 

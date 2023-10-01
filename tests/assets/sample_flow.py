@@ -5,6 +5,13 @@ def callback(obj, type_):
     return obj.a * 2
 
 
+class Multiply(Compose):
+    a: int
+
+    def run(self, x) -> int:
+        return self.a * x
+
+
 class Sum1(Compose):
     a: int
     b: int = 10
@@ -17,13 +24,14 @@ class Sum1(Compose):
 
 class Sum2(Compose):
     a: int
+    mult: Node[Compose] = Node(default=Multiply, default_kwargs={"a": 10})
 
     def run(self, a, b: int, *args, **kwargs) -> int:
-        return self.a + a + b
+        return self.a + a + self.mult(b)
 
 
-class Plus(Compose):
-    """Plus calculation"""
+class Func(Compose):
+    """Function calculation"""
 
     a: Param[int] = Param(default=100, help="The `a` number")
     e: Param[int] = Param(help="The `e` number")
@@ -39,6 +47,6 @@ class Plus(Compose):
     def z(self):
         return Sum1(a=self.x.a * 10)
 
-    def run(self) -> int:
-        x, y, m = self.x(), self.y(), self.m()
+    def run(self, ma, mb) -> int:
+        x, y, m = self.x(), self.y(), self.m(ma, mb)
         return x + y + m
