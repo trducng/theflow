@@ -32,8 +32,6 @@ website:
         - section: "Logic layer"
           contents:
             - topics/compose.qmd
-            - topics/param.qmd
-            - topics/node.qmd
             - topics/config.qmd
             - topics/middleware.qmd
         - section: "Storage layer"

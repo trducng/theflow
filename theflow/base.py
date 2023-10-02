@@ -1,3 +1,4 @@
+import inspect
 import logging
 from abc import abstractmethod
 from collections import defaultdict
@@ -25,7 +26,7 @@ from .exceptions import InvalidNodeDefinition, InvalidParamDefinition
 from .runs.base import RunTracker
 from .settings import settings
 from .utils.modules import import_dotted_string, init_object, serialize
-from .utils.pretties import reindent_docstring, unflatten_dict
+from .utils.pretties import unflatten_dict
 from .utils.typings import (
     input_signature,
     is_compatible_with,
@@ -85,6 +86,7 @@ class Param(Generic[ParamAttribute]):
         strict_type: bool = False,
         depends_on: Optional[Union[str, List[str]]] = None,
         no_cache: bool = False,
+        **extras,
     ):
         self._default: ParamAttribute = cast(ParamAttribute, default)
         self._default_callback = default_callback
@@ -93,6 +95,7 @@ class Param(Generic[ParamAttribute]):
         self._strict_type = strict_type
         self._no_cache = no_cache
         self._type = None
+        self._extras = extras
 
         if isinstance(depends_on, str):
             depends_on = [depends_on]
@@ -225,7 +228,15 @@ class Param(Generic[ParamAttribute]):
         self._validate_args()
 
     @classmethod
-    def decorate(cls, **kwargs):
+    def decorate(
+        cls,
+        help: str = "",
+        refresh_on_set: bool = False,
+        strict_type: bool = False,
+        depends_on: Optional[Union[str, List[str]]] = None,
+        no_cache: bool = False,
+        **kwargs,
+    ):
         """Automatically set the `defeault_callback`"""
         if "default_callback" in kwargs:
             raise InvalidParamDefinition(
@@ -234,8 +245,16 @@ class Param(Generic[ParamAttribute]):
             )
 
         def inner(func):
-            help: str = kwargs.pop("help", reindent_docstring(func.__doc__))
-            return cls(default_callback=lambda obj, _: func(obj), help=help, **kwargs)
+            help_: str = help if help else inspect.getdoc(func)
+            return cls(
+                default_callback=lambda obj, _: func(obj),
+                help=help_,
+                refresh_on_set=refresh_on_set,
+                strict_type=strict_type,
+                depends_on=depends_on,
+                no_cache=no_cache,
+                **kwargs,
+            )
 
         return inner
 
@@ -250,6 +269,7 @@ class Param(Generic[ParamAttribute]):
             "strict_type": self._strict_type,
             "depends_on": self._depends_on,
             "no_cache": self._no_cache,
+            **self._extras,
         }
 
     def __persist_flow__(self):
@@ -283,11 +303,13 @@ class Node(Generic[NodeAttribute]):
         help: str = "",
         input: Union[Type["empty"], Dict[str, Any]] = empty,
         output: Any = empty,
+        **extras,
     ):
         self._default: Type[NodeAttribute] = cast(Type[NodeAttribute], default)
         self._default_kwargs: dict = default_kwargs or {}
         self._default_callback = default_callback
         self._help = help
+        self._extras = extras
         if isinstance(depends_on, str):
             depends_on = [depends_on]
         self._depends_on: Optional[List[str]] = depends_on
@@ -403,7 +425,15 @@ class Node(Generic[NodeAttribute]):
         self._owner = owner
 
     @classmethod
-    def decorate(cls, **kwargs):
+    def decorate(
+        cls,
+        depends_on: Optional[Union[str, List[str]]] = None,
+        no_cache: bool = False,
+        help: str = "",
+        input: Union[Type["empty"], Dict[str, Any]] = empty,
+        output: Any = empty,
+        **kwargs,
+    ):
         """Automatically set the `defeault_callback`"""
         if "default_callback" in kwargs:
             raise InvalidNodeDefinition(
@@ -412,8 +442,16 @@ class Node(Generic[NodeAttribute]):
             )
 
         def inner(func):
-            help: str = kwargs.pop("help", reindent_docstring(func.__doc__))
-            return cls(default_callback=lambda obj, _: func(obj), help=help, **kwargs)
+            help_: str = help if help else inspect.getdoc(func)
+            return cls(
+                default_callback=lambda obj, _: func(obj),
+                depends_on=depends_on,
+                no_cache=no_cache,
+                help=help_,
+                input=input,
+                output=output,
+                **kwargs,
+            )
 
         return inner
 
@@ -429,6 +467,7 @@ class Node(Generic[NodeAttribute]):
             "no_cache": self._no_cache,
             "input": self._input,
             "output": self._output,
+            **self._extras,
         }
 
     def __persist_flow__(self):
@@ -447,6 +486,18 @@ class Node(Generic[NodeAttribute]):
         return export
 
 
+_node_cls = (
+    init_object(settings.NODE_CLASS, safe=False)
+    if getattr(settings, "NODE_CLASS", "")
+    else Node
+)
+_param_cls = (
+    init_object(settings.PARAM_CLASS, safe=False)
+    if getattr(settings, "PARAM_CLASS", "")
+    else Param
+)
+
+
 class MetaCompose(type):
     def __new__(cls, clsname, bases, attrs):
         # Make sure all nodes and params have the Node and Param descriptor
@@ -456,9 +507,11 @@ class MetaCompose(type):
             if name in attrs and isinstance(attrs[name], (Node, Param)):
                 continue
             if is_node_type(value):
-                desc = Node(default=attrs[name]) if name in attrs else Node()
+                desc = _node_cls(default=attrs[name]) if name in attrs else _node_cls()
             else:
-                desc = Param(default=attrs[name]) if name in attrs else Param()
+                desc = (
+                    _param_cls(default=attrs[name]) if name in attrs else _param_cls()
+                )
             attrs[name] = desc
 
         try:

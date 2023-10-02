@@ -39,6 +39,33 @@ path.
 Example, `obj.spec(".node1.node2.param1")` will return the Param spec of nested
 node1's node2's param1.
 
+### Customize `Node` and `Param` descriptor behavior
+
+Depending on how much you want to customize, there are 3 ways:
+
+- Only extra data, no behavior changes: just supply extra data into `Node` and
+  `Param`, and they can be accessed with `._extras` as a dictionary. The
+  `Node.to_dict()` and `Param.to_dict()` will also include the extra data.
+- Pre-defined behavior changes: the default `Node` and `Param` can access
+  certain pre-defined callbacks from the parent Compose.
+- Arbitrary behavior changes: subclass `Node` and `Param`, and override
+  methods as needed. The `Node.to_dict()` and `Param.to_dict()` will also show
+  the extra data.
+
+#### Callback way
+
+- `_prepare_child(self, child: "Compose", name: str)` is called when a child
+  node is being accessed. The `child` corresponds to the node object, and `name`
+  corresponds to the node name in the parent compose.
+
+#### Subclass way
+
+After subclassing Node and Param, you can directly use them in your Compose
+definition. Also, you can add them in project-wide settings: `NODE_CLASS` and
+`PARAM_CLASS` respectively, and they will take effect as default node and param
+definition.
+
+
 ## Compose internals
 
 ### Declare and list protected keywords

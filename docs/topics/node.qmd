@@ -1,5 +1,0 @@
----
-title: "Node"
-highlight-style: github
-code-annotations: select
----
