@@ -43,8 +43,8 @@ class naivehash:
                 self.update(obj[key])
         else:
             path = ""
-            path += obj.__module__ if hasattr(obj, "__module__") else ""
-            path += obj.__name__ if hasattr(obj, "__name__") else ""
+            path += str(obj.__module__) if hasattr(obj, "__module__") else ""
+            path += str(obj.__name__) if hasattr(obj, "__name__") else ""
             self.update(f"|{type_}|{path}|")
 
             for idx, attr in enumerate(sorted(dir(obj))):
@@ -52,7 +52,8 @@ class naivehash:
                     continue
                 self.update(f"|{type_}{idx}|")
                 self.update(attr)
-                self.update(getattr(obj, attr))
+                # avoid self.update(getattr(obj, attr)) to avoid infinite recursion
+                self.update(str(getattr(obj, attr)))
 
     def __call__(self, obj: Any) -> str:
         """Return the hash digest"""

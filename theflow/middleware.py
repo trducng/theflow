@@ -157,9 +157,13 @@ class CachingMiddleware(Middleware):
         self._cache = init_object(settings.CACHE, safe=False)
 
     def __call__(self, *args, **kwargs):
-        hash_key = self.create_key(*args, **kwargs)
-        if hash_key in self._cache:
-            return self._cache[hash_key]
+        try:
+            hash_key = self.create_key(*args, **kwargs)
+            if hash_key in self._cache:
+                return self._cache[hash_key]
+        except Exception as e:
+            logger.exception(f"Failed to create key: {e}")
+            return self.next_call(*args, **kwargs)
 
         output = self.next_call(*args, **kwargs)
         self._cache[hash_key] = output
@@ -172,6 +176,13 @@ class CachingMiddleware(Middleware):
             - the `run`'s input
             - the Compose's class name
             - the Compose's dump
+
+        Args:
+            *args: positional arguments of the run
+            **kwargs: keyword arguments of the run
+
+        Returns:
+            str: the key
         """
         from .utils.hashes import naivehash
 
