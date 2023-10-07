@@ -21,7 +21,7 @@ class DefaultConfig:
     middleware_switches = {
         "theflow.middleware.TrackProgressMiddleware": True,
         "theflow.middleware.SkipComponentMiddleware": True,
-        "theflow.middleware.CachingMiddleware": True,
+        "theflow.middleware.CachingMiddleware": False,
     }
 
 

@@ -33,6 +33,9 @@ class Sum2(Compose):
 class Func(Compose):
     """Function calculation"""
 
+    class Config:
+        middleware_switches = {"theflow.middleware.CachingMiddleware": True}
+
     a: Param[int] = Param(default=100, help="The `a` number")
     e: Param[int] = Param(help="The `e` number")
     x: Compose

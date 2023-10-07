@@ -869,6 +869,7 @@ class Compose(metaclass=MetaCompose):
         """Set the keyword arguments in the composable"""
         kwargs = unflatten_dict(kwargs)
         for name, value in kwargs.items():
+            name = name.strip(".")
             if name in self._ff_nodes and isinstance(value, dict):
                 getattr(self, name).set(value, strict=strict)
             else:
@@ -899,6 +900,7 @@ class Compose(metaclass=MetaCompose):
         """
         kwargs = unflatten_dict(kwargs)
         for name, value in kwargs.items():
+            name = name.strip(".")
             if name in self._ff_nodes and isinstance(value, dict):
                 getattr(self, name).set_run(value, temp=temp)
             else:
