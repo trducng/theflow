@@ -29,5 +29,6 @@ repos:
   rev: v1.5.1
   hooks:
     - id: mypy
-      additional_dependencies: [types-PyYAML==6.0.12.11]
+      additional_dependencies: [types-PyYAML==6.0.12.11, pandas-stubs==2.1.1.230928]
+      args: [--check-untyped-defs]
       exclude: ^tests/

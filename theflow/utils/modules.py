@@ -2,7 +2,7 @@ import importlib
 import inspect
 import logging
 import sys
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Generic, Optional, Type, TypeVar
 
 logger = logging.getLogger(__name__)
 NATIVE_TYPE = (dict, list, tuple, str, int, float, bool, type(None))
@@ -163,3 +163,54 @@ def deserialize(
         return value
 
     raise ValueError(f"Cannot deserialize type {type(value)} ({value})")
+
+
+T = TypeVar("T")
+
+
+class ObjectInitDeclaration(Generic[T]):
+    """Declare the init parameters to initialize an object
+
+    This will declare an object and initialize it later, useful to set default
+    values of a class parameter.
+    """
+
+    def __init__(self, cls: Type[T], **params: dict):
+        self.cls: Type[T] = cls
+        self.params: dict = params
+
+    def __call__(self) -> T:
+        """Initialize the object"""
+        params = {}
+        for key, val in self.params.items():
+            if isinstance(val, ObjectInitDeclaration):
+                params[key] = val()
+            else:
+                params[key] = val
+
+        return self.cls(**params)
+
+    def withx(self, **params) -> "ObjectInitDeclaration[T]":
+        """Continue declaring the object with additional parameters"""
+        return ObjectInitDeclaration(self.cls, **{**self.params, **params})
+
+    @classmethod
+    def from_serialized(cls, d: dict):
+        """Convert a dict-serialized object into an ObjectInitDeclaration"""
+        target_cls = import_dotted_string(d.pop("__type__"), safe=False)
+        for key, value in d.items():
+            if isinstance(value, dict) and "__type__" in value:
+                d[key] = cls.from_serialized(value)
+        return ObjectInitDeclaration(target_cls, **d)
+
+    def __persist_flow__(self) -> dict:
+        """Express the object as a dict"""
+        params = {}
+        for key, value in self.params.items():
+            params[key] = (
+                value.__persist_flow__()
+                if isinstance(value, ObjectInitDeclaration)
+                else value
+            )
+
+        return {"__type__": f"{self.cls.__module__}.{self.cls.__name__}", **params}

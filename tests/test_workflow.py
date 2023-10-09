@@ -31,9 +31,9 @@ def allow_multiprocessing(kwargs):
 
 
 class MultiprocessingWorkFlow(Compose):
-    increment_by = Node(default=IncrementBy, default_kwargs={"x": 1})
-    decrement_by = Node(default=DecrementBy, default_kwargs={"x": 1})
-    multiply_by = Node(default=MultiplyBy, default_kwargs={"x": 2})
+    increment_by = Node(default=IncrementBy.withx(x=1))
+    decrement_by = Node(default=DecrementBy.withx(x=1))
+    multiply_by = Node(default=MultiplyBy.withx(x=2))
 
     def run(self, x, times):
         y = self.decrement_by(x)

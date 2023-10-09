@@ -6,6 +6,198 @@ code-annotations: select
 
 ## Node and Param related functionalities
 
+### Declare Node and Param
+
+Node and params are Function attributes.
+
+They can be declared implicitly through type annotation, or can be declared
+explicitly by using `Node` and `Param`.
+
+You can implicitly declare node by annotating the attributes with `Compose` type
+or any of its subclass. Attributes with other types will be treated as params.
+
+You can explicitly declare node and param by assigning it to `Node()` and
+`Param()` descriptors respectively.
+
+Node and param names cannot start with underscore `_`.
+
+```python
+from compose import Compose
+
+class Pipeline(x: Compose):
+
+    # x is implicitly declared as node
+    x: Compose
+
+    # y is explicitly declared as node
+    y = Node()
+
+    # a is implicitly declared as param
+    a: int
+
+    # b is explicitly declared as param
+    b = Param()
+```
+
+### Declare node and param with default value
+
+The `Node()` and `Param()` descriptors accept a `default` and `default_callback`
+argument. If a node or param is accessed without being set, the value in
+`default` will be used, or the `default_callback` will be called to get the
+default value. Only one of `default` and `default_callback` can be set.
+
+Note that `default` and `default_callback` are lazily evaluated only when the
+attribute is accessed, not when the Compose object is initiated.
+
+**With `default`**
+
+When assinging a Node `default`, one can supply:
+
+- A `Compose` object or any of its subclass. This object will be called `()` to
+  initiate real instance once the node is accessed.
+- If ones want the compose object (let's say named `ComponentA`) to be initiated
+  with specific set of arguments, one can declare with `withx`:
+  `Node(default=ComponentA.withx(arg1=val1, arg2=val2))` and the component will
+  be initiated with `ComponentA(arg1=val1, arg2=val2)`.
+
+When assigning a Param `default`, one can supply any value. If one wishes the
+default object to be init with specific arguments, one can use
+`theflow.utils.modules.objectInitDeclaration`.
+
+```python
+from theflow import Compose, Node, Param
+from theflow.utils.modules import ObjectInitDeclaration
+
+class Pipeline(x: Compose):
+
+    # default value of x1 is Pipeline2()
+    x1: Compose = Pipeline2
+
+    # have the same effect as x1
+    x2 = Node(default=Pipeline2)
+
+    # default value of y1 is Pipeline2(param1=1, param2=2)
+    y1: Compose = Pipeline2.withx(param1=1, param2=2)
+
+    # have the same effect as y1
+    y2 = Node(default=Pipeline2.withx(param1=1, param2=2))
+
+    # default value of a1 is 1
+    a1: int = 1
+
+    # have the same effect as a1
+    a2 = Param(default=1)
+
+    # default value of b1 is Obj1(), without `ObjectInitDeclaration`,
+    # the default value of b1 will be just Obj1
+    b1: Obj1 = ObjectInitDeclaration(Obj1)
+
+    # have the same effect as b1
+    b2 = Param(default=ObjectInitDeclaration(Obj1))
+
+    # default value of c1 is Obj1(param1=1, param2=2)
+    c1: Obj1 = ObjectInitDeclaration(Obj1).withx(param1=1, param2=2)
+
+    # have the same effect as c1
+    c2 = Param(default=ObjectInitDeclaration(Obj1).withx(param1=1, param2=2))
+```
+
+**With `default_callback`**
+
+The `default_callback` takes in a function with signature `func(obj) -> val`
+where `obj` will be supplied with parent Compose object, and `val` will be the
+default node or param value.
+
+To make declaration clean, `theflow` provides a `@Param.default` and
+`@Node.param` decorators that will turn a method into a default function for the
+node/param of the same name.
+
+
+```python
+from theflow import Compose, Node, Param
+
+class Pipeline(Compose):
+
+    # default value of node x1 is Pipeline2()
+    x1 = Node(default_callback=lambda obj: Pipeline2())
+
+    @Node.default()
+    def x2(self):
+        """This is the same as x2 = Node(default_callback=lambda obj: obj.x1)"""
+        return self.x1
+
+    # return list of 10 as default
+    a1 = Param(default_callback=lambda obj: list(range(10)))
+
+    @Param.default()
+    def a2(self):
+        """This is the same as
+        a2 = Param(default_callback=lambda obj: obj.a1 + list(range(11, 20)))
+        """
+        return self.a1 + list(range(11, 20))
+```
+
+### Declare node and param that depends on other nodes and params
+
+These nodes and params cannot be set explicitly. Instead, they depend on other
+values in a Compose object. One supply an `auto_callback` function in the
+`Node()` and `Param()` descriptors to make a node/param into an auto version.
+This function will be called when the node or param is accessed to calculate its
+value.
+
+`auto_callback` is different from `default_callback` in that `default_callback`
+only applies when the node or param is not set, while `auto_callback` can work
+after that. Also, param/node with `auto_callback` cannot be manually set, while
+it's possible to set param/node with `default_callback`.
+
+`theflow` also provides a `Node.auto()` and `Param.auto()` decorators to turn a
+method into an auto callback function.
+
+When using `@Node/Param.auto()` and `auto_callback`, one can set `cache` and
+`depends_on` parameters to control the caching behavior.
+
+With `cache=True`, the auto callback function will be executed if any of the
+nodes and params in the Compose changes. This value is set to True by default
+with `@Node/Param.auto()`, and to False by default with `Node/Param()`.
+
+With `depends_on=["name1", "name2"]`, the auto callback function will be
+executed if any of the mentioned nodes and params changes. This option requires
+`cache=True`. Essentially, it limits the scope of searching for change when
+cache is enabled.
+
+```python
+from theflow import Compose, Node, Param
+
+class Pipeline(Compose):
+
+    x1 = Node(default_callback=lambda obj: Pipeline2())
+
+    @Node.auto(depends_on=["x1"])
+    def x2(self):
+        """This is the same as
+        x2 = Node(
+            auto_callback=lambda obj: Pipeline3(x=obj.x1),
+            cache=True,
+            depends_on=["x1"]
+        )
+        """
+        return Pipeline3(x=self.x1)
+
+    a1: int
+    a2: int
+
+    @Param.auto(depends_on=["a1", "a2"])
+    def a3(self):
+        """This is the same as
+        a3 = Param(
+            auto_callback=lambda obj: obj.a1 + obj.a2,
+            cache=True,
+            depends_on=["a1", "a2"]
+        )
+        """
+        return self.a1 + self.a2
+```
+
 ### Access node and param
 
 Nodes and params can be accessed with normal Python dot notation from the

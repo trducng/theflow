@@ -1,6 +1,2 @@
-class InvalidParamDefinition(AttributeError):
-    pass
-
-
-class InvalidNodeDefinition(AttributeError):
+class InvalidAttrDefinition(AttributeError):
     pass

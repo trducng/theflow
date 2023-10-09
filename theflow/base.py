@@ -1,31 +1,26 @@
+from __future__ import annotations
+
 import inspect
 import logging
 from abc import abstractmethod
 from collections import defaultdict
 from functools import lru_cache
 from typing import _GenericAlias  # type: ignore
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    ForwardRef,
-    Generic,
-    List,
-    Optional,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-    cast,
-    overload,
-)
+from typing import Any, Callable, ForwardRef, Generic, TypeVar, cast, overload
+
+from typing_extensions import dataclass_transform
 
 from .config import Config, ConfigProperty, DefaultConfig
 from .context import Context
-from .exceptions import InvalidNodeDefinition, InvalidParamDefinition
+from .exceptions import InvalidAttrDefinition
 from .runs.base import RunTracker
 from .settings import settings
-from .utils.modules import import_dotted_string, init_object, serialize
+from .utils.modules import (
+    ObjectInitDeclaration,
+    import_dotted_string,
+    init_object,
+    serialize,
+)
 from .utils.pretties import unflatten_dict
 from .utils.typings import (
     input_signature,
@@ -53,67 +48,63 @@ def is_node_type(annotation) -> bool:
     return False
 
 
-class empty:
-    pass
+class unset_:
+    def __bool__(self):
+        return False
+
+    def __persist_flow__(self):
+        type_ = f"{self.__module__}.{self.__class__.__qualname__}"
+        return {"__type__": type_}
 
 
-ParamAttribute = TypeVar("ParamAttribute")
-NodeAttribute = TypeVar("NodeAttribute", bound="Compose")
+unset = unset_()
+
+Attr = TypeVar("Attr")
+ParamAttr = TypeVar("ParamAttr")
+NodeAttr = TypeVar("NodeAttr", bound="Compose")
 
 
-class Param(Generic[ParamAttribute]):
-    """Control the behavior of a parameter in a Compose
+class FunctionAttribute(Generic[Attr]):
+    """Decriptor to store function attributes
 
     Args:
         default: default value of the parameter
-        default_callback: callback function to generate the default value. This
+        default_callback: callback function to generate default attribute value. This
             callback takes in the Compose object and output the default value.
-        refresh_on_set: if True, the original object will be refreshed when it is set
+        auto_callback: callback function to generate attribute value. This
+            callback takes in the Compose object and output the default value.
+        cache: if True, the value of the parameter will not be cached and will be
+            recalculated everytime it is accessed (requires `auto_callback`)
         depends_on: if set, the value of the parameter will be calculated from the
-            values of the depends_on parameters (requires `default_callback`)
-        no_cache: if True, the value of the parameter will not be cached and will be
-            recalculated everytime it is accessed (requires `default_callback`)
+            values of the depends_on parameters (requires `cache=True`)
+        help: help message for the attribute
     """
 
     def __init__(
         self,
-        default: Union[ParamAttribute, Type["empty"]] = empty,
-        default_callback: Optional[
-            Callable[[Optional["Compose"], Optional[Type["Compose"]]], ParamAttribute]
-        ] = None,
+        default: Attr | ObjectInitDeclaration[Attr] | unset_ | type = unset,
+        *,
+        default_callback: Callable[[Any], Attr] | unset_ = unset,
+        auto_callback: Callable[[Any], Attr] | unset_ = unset,
+        cache: bool = False,
+        depends_on: str | list[str] | None = None,
         help: str = "",
-        refresh_on_set: bool = False,
-        strict_type: bool = False,
-        depends_on: Optional[Union[str, List[str]]] = None,
-        no_cache: bool = False,
         **extras,
     ):
-        self._default: ParamAttribute = cast(ParamAttribute, default)
+        self._default: Attr = cast(Attr, default)
         self._default_callback = default_callback
+        self._auto_callback = auto_callback
         self._help = help
-        self._refresh_on_set = refresh_on_set
-        self._strict_type = strict_type
-        self._no_cache = no_cache
-        self._type = None
         self._extras = extras
+
+        self._cache = cache
 
         if isinstance(depends_on, str):
             depends_on = [depends_on]
-        self._depends_on: Optional[List[str]] = depends_on
+        self._depends_on: list[str] | None = depends_on
+        self._to_check = depends_on or []
 
-    def _validate_args(self):
-        """Validate the __init__ args"""
-
-        if self._depends_on and not self._default_callback:
-            raise InvalidParamDefinition(
-                "Must provide `default_callback` when param has `depends_on`: "
-                f"{self._qual_name}"
-            )
-        if self._depends_on and self._no_cache:
-            raise InvalidParamDefinition(
-                "Cannot set `no_cache=True` if param has `depends_on`: "
-                f"{self._qual_name}"
-            )
+        self._attrx = self.__class__.__name__
 
     def __str__(self):
         text = ", ".join(
@@ -129,93 +120,61 @@ class Param(Generic[ParamAttribute]):
         return str(self)
 
     @overload
-    def __get__(self, obj: None, type_: Optional[Type["Compose"]]) -> "Param":
+    def __get__(self, obj: None, _: type[Compose] | None) -> FunctionAttribute:
         ...
 
     @overload
-    def __get__(
-        self, obj: "Compose", type_: Optional[Type["Compose"]]
-    ) -> ParamAttribute:
+    def __get__(self, obj: Compose, _: type[Compose] | None) -> Attr:
         ...
 
     def __get__(
-        self, obj: Optional["Compose"], type_: Optional[Type["Compose"]] = None
-    ) -> Union[ParamAttribute, "Param"]:
+        self, obj: Compose | None, _: type[Compose] | None = None
+    ) -> Attr | FunctionAttribute:
+        """Get the value of the parameter"""
         if obj is None:
             return self
 
         if not isinstance(obj, Compose):
-            raise ValueError("Param can only be used with Compose")
-
-        if self._depends_on:
-            self._calculate_from_depends_on(obj, type_)
-        elif self._name not in obj.__ff_params__ or self._no_cache:
-            if self._default_callback:
-                value = self._default_callback(obj, type_)
-            elif self._default != empty:
-                value = self._default
-            else:
-                raise AttributeError(
-                    f"Parameter {self._name} is not set and has no default value"
-                )
-            # TODO: need type checking of default value
-            obj.__ff_params__[self._name] = value
-
-        return obj.__ff_params__[self._name]
-
-    def _calculate_from_depends_on(
-        self, obj: "Compose", type_: Optional[Type["Compose"]] = None
-    ):
-        """Calculate the value of the parameter from the depends_on"""
-        if not self._depends_on:
-            return
-
-        ids = {}
-        for target in self._depends_on:
-            old_id = obj.__ff_depends__[self._name].get(target, -1)
-            new_id = id(getattr(obj, target))
-            ids[target] = new_id
-            if old_id != new_id:
-                if self._default_callback is None:
-                    raise ValueError(
-                        f"Param {self._qual_name} depends on {self._depends_on} "
-                        "is a computed param and require default_callback"
-                    )
-                value = self._default_callback(obj, type_)
-                obj.__ff_params__[self._name] = value
-                for target_ in self._depends_on:
-                    if target_ in ids:
-                        obj.__ff_depends__[self._name][target_] = ids[target_]
-                    else:
-                        obj.__ff_depends__[self._name][target_] = id(
-                            getattr(obj, target_)
-                        )
-                break
-
-    def __set__(self, obj: "Compose", value: Any):
-        if self._depends_on:
             raise ValueError(
-                f"Param {self._qual_name} depends on {self._depends_on}, "
-                "cannot be set directly"
+                f"`{self.__class__.__name__}` can only be used with Compose: "
+                f"{self._qual_name}"
             )
 
-        if self._strict_type:
-            if not isinstance(value, obj.__dict__["__annotations__"][self._name]):
-                # TODO: more sophisicated type checking (e.g. handle Union, Optional...)
-                raise ValueError(
-                    f"Value {value} is not of type {type(self._default)} "
-                    f"for parameter {self._name}"
-                )
+        if not isinstance(self._auto_callback, unset_):
+            value = self._auto_calculate_param(obj)
+        elif self._name in obj._attrx[self._attrx]:
+            value = obj._attrx[self._attrx][self._name]
+        elif self._default != unset:
+            if isinstance(self._default, ObjectInitDeclaration):
+                value = self._default()
+            else:
+                value = self._default
+            value = cast(Attr, value)
+        elif not isinstance(self._default_callback, unset_):
+            value = self._default_callback(obj)
+        else:
+            raise AttributeError(
+                f"{self._attrx} {self._qual_name} is not set and has no default value"
+            )
 
-        obj.__ff_params__[self._name] = value
-        if self._refresh_on_set:
-            obj._initialize()
+        obj._attrx[self._attrx][self._name] = value
+        return value
 
-    def __delete__(self, obj: "Compose"):
-        if self._name in obj.__ff_params__:
-            del obj.__ff_params__[self._name]
-            if self._refresh_on_set:
-                obj._initialize()
+    def __set__(self, obj: Compose, value: Any):
+        if self._auto_callback != unset:
+            raise ValueError(
+                f"Cannot set value for auto-calculated {self._attrx}: {self._qual_name}"
+            )
+        obj._attrx[self._attrx][self._name] = value
+
+    def __delete__(self, obj: Compose):
+        if self._auto_callback != unset:
+            raise ValueError(
+                f"Cannot delete value for auto-calculated parameter: {self._qual_name}"
+            )
+
+        if self._name in obj._attrx[self._attrx]:
+            del obj._attrx[self._attrx][self._name]
 
     def __set_name__(self, owner: type, name: str):
         self._name = name
@@ -227,32 +186,143 @@ class Param(Generic[ParamAttribute]):
         # validate after receiving the name and type for actionable error message
         self._validate_args()
 
+    def __persist_flow__(self):
+        """Return the state in a way that can be initiated"""
+        export = {}
+        for key, value in self.to_dict().items():
+            try:
+                serialized = serialize(value)
+            except Exception as e:
+                type_ = f"{self._owner.__module__}.{self._owner.__qualname__}"
+                logger.debug(f"{type_}.{self._name}.{key}: {e}... skip")
+                serialized = serialize(unset)
+            export[key] = serialized
+
+        return export
+
+    def _auto_calculate_param(self, obj: Compose) -> Attr:
+        """Calculate the value of the auto-parameter
+
+        Args:
+            obj: the Compose object
+
+        Returns:
+            the value of the parameter
+        """
+        if isinstance(self._auto_callback, unset_):
+            raise ValueError(
+                f"Cannot calculate auto-parameter without auto_callback: "
+                f"{self._qual_name}"
+            )
+
+        if not self._cache:
+            return self._auto_callback(obj)
+
+        if not self._to_check:
+            for attr in dir(obj.__class__):
+                if attr == self._name:
+                    continue
+                if isinstance(getattr(obj.__class__, attr), Param):
+                    self._to_check.append(attr)
+                if isinstance(getattr(obj.__class__, attr), Node):
+                    self._to_check.append(attr)
+
+        ids = {}
+        must_recalculate = False
+        for target in self._to_check:
+            old_id = obj.__ff_depends__[self._name].get(target, -1)
+            new_id = id(getattr(obj, target))
+            ids[target] = new_id
+
+            if old_id != new_id:
+                must_recalculate = True
+                break
+
+        if must_recalculate:
+            value = self._auto_callback(obj)
+            # calculate new hash
+            for target in self._to_check:
+                id_ = ids[target] if target in ids else id(getattr(obj, target))
+                obj.__ff_depends__[self._name][target] = id_
+        else:
+            value = obj._attrx[self._attrx][self._name]
+
+        return value
+
+    def _validate_args(self):
+        """Validate the __init__ args"""
+        if (
+            sum(
+                [
+                    self._default != unset,
+                    self._default_callback != unset,
+                    self._auto_callback != unset,
+                ]
+            )
+            > 1
+        ):
+            raise InvalidAttrDefinition(
+                "Only one of `default`, `default_callback`, `auto_callback` can be set:"
+                f" {self._qual_name}"
+            )
+
+        if self._cache and self._auto_callback == unset:
+            raise InvalidAttrDefinition(
+                f"`cache=True` only applies for `auto_callback`: {self._qual_name}"
+            )
+
+        if self._depends_on and not self._cache:
+            raise InvalidAttrDefinition(
+                f"`depends_on` only applies for `cache=True`: {self._qual_name}"
+            )
+
     @classmethod
-    def decorate(
+    def default(
         cls,
-        help: str = "",
+        *,
         refresh_on_set: bool = False,
         strict_type: bool = False,
-        depends_on: Optional[Union[str, List[str]]] = None,
-        no_cache: bool = False,
         **kwargs,
     ):
-        """Automatically set the `defeault_callback`"""
-        if "default_callback" in kwargs:
-            raise InvalidParamDefinition(
-                "Redundant `default_callback` in Param.decorate: "
-                f"({kwargs['default_callback']})"
+        """Method decorator to create default callback"""
+        if kwargs.get("help"):
+            raise ValueError(
+                "Please set `help` as function docstring when use `default` decorator"
             )
 
         def inner(func):
-            help_: str = help if help else inspect.getdoc(func)
+            help_: str = inspect.getdoc(func) or ""
             return cls(
-                default_callback=lambda obj, _: func(obj),
+                default_callback=lambda obj: func(obj),
                 help=help_,
                 refresh_on_set=refresh_on_set,
                 strict_type=strict_type,
+                **kwargs,
+            )
+
+        return inner
+
+    @classmethod
+    def auto(
+        cls,
+        *,
+        cache: bool = True,
+        depends_on: str | list[str] | None = None,
+        **kwargs,
+    ):
+        """Method decorator to create auto callback"""
+        if kwargs.get("help"):
+            raise ValueError(
+                "Please set `help` as function docstring when use `auto` decorator"
+            )
+
+        def inner(func):
+            help_: str = inspect.getdoc(func) or ""
+            return cls(
+                auto_callback=lambda obj: func(obj),
+                help=help_,
                 depends_on=depends_on,
-                no_cache=no_cache,
+                cache=cache,
                 **kwargs,
             )
 
@@ -261,229 +331,279 @@ class Param(Generic[ParamAttribute]):
     def to_dict(self) -> dict:
         """Return the internal state of the Param as a dict"""
         return {
-            "__type__": "param",
+            "__type__": f"{self.__module__}.{self.__class__.__qualname__}",
             "default": self._default,
             "default_callback": self._default_callback,
+            "auto_callback": self._auto_callback,
             "help": self._help,
-            "refresh_on_set": self._refresh_on_set,
-            "strict_type": self._strict_type,
             "depends_on": self._depends_on,
-            "no_cache": self._no_cache,
+            "cache": self._cache,
             **self._extras,
         }
 
-    def __persist_flow__(self):
-        """Return the state in a way that can be initiated"""
-        type_ = f"{self._owner.__module__}.{self._owner.__qualname__}"
-        export: dict = {"__type__": type_}
 
-        for key, value in self.to_dict().items():
-            try:
-                serialized = serialize(value)
-            except Exception as e:
-                logger.debug(f"{type_}.{self._name}.{key}: {e}... skip")
-                serialized = serialize(empty)
-            export[key] = serialized
+class Param(FunctionAttribute[ParamAttr]):
+    """Control the behavior of a parameter in a Compose
 
-        return export
-
-
-class Node(Generic[NodeAttribute]):
-    """Control the behavior of a node in a Compose"""
+    Args:
+        default: default value of the parameter
+        default_callback: callback function to generate default attribute value. This
+            callback takes in the Compose object and output the default value.
+        auto_callback: callback function to generate attribute value. This
+            callback takes in the Compose object and output the default value.
+        cache: if True, the value of the parameter will not be cached and will be
+            recalculated everytime it is accessed (requires `auto_callback`)
+        depends_on: if set, the value of the parameter will be calculated from the
+            values of the depends_on parameters (requires `cache=True`)
+        help: help message for the attribute
+        refresh_on_set: if True, the original object will be refreshed when it is set
+        strict_type: if True, the type of the value will be checked when it is set
+    """
 
     def __init__(
         self,
-        default: Union[Type["empty"], Type[NodeAttribute]] = empty,
-        default_kwargs: Optional[Dict[str, Any]] = None,
-        default_callback: Optional[
-            Callable[[Optional["Compose"], Optional[Type["Compose"]]], NodeAttribute]
-        ] = None,
-        depends_on: Optional[Union[str, List[str]]] = None,
-        no_cache: bool = False,
+        default: ParamAttr | ObjectInitDeclaration[ParamAttr] | unset_ = unset,
+        *,
+        default_callback: Callable[[Any], ParamAttr] | unset_ = unset,
+        auto_callback: Callable[[Any], ParamAttr] | unset_ = unset,
+        cache: bool = False,
+        depends_on: str | list[str] | None = None,
         help: str = "",
-        input: Union[Type["empty"], Dict[str, Any]] = empty,
-        output: Any = empty,
+        refresh_on_set: bool = False,
+        strict_type: bool = False,
         **extras,
     ):
-        self._default: Type[NodeAttribute] = cast(Type[NodeAttribute], default)
-        self._default_kwargs: dict = default_kwargs or {}
-        self._default_callback = default_callback
-        self._help = help
-        self._extras = extras
-        if isinstance(depends_on, str):
-            depends_on = [depends_on]
-        self._depends_on: Optional[List[str]] = depends_on
-        self._no_cache = no_cache
-        if self._depends_on and self._no_cache:
-            raise ValueError(
-                f"depends_on and no_cache cannot be both set: {self._name}"
-            )
+        super().__init__(
+            default=default,
+            default_callback=default_callback,
+            auto_callback=auto_callback,
+            cache=cache,
+            depends_on=depends_on,
+            help=help,
+            **extras,
+        )
 
-        self._input: Union[Type["empty"], Dict[str, Any]] = input
+        # param-specific attributes
+        self._refresh_on_set = refresh_on_set
+        self._strict_type = strict_type
+        self._type = None
+
+    def __set__(self, obj: Compose, value: Any):
+        if self._strict_type:
+            if not isinstance(value, obj.__dict__["__annotations__"][self._name]):
+                # TODO: more sophisicated type checking (e.g. handle Union, Optional...)
+                raise ValueError(
+                    f"Value {value} is not of type {type(self._default)} "
+                    f"for parameter {self._name}"
+                )
+
+        super().__set__(obj, value)
+        if self._refresh_on_set:
+            obj._initialize()
+
+    def __delete__(self, obj: Compose):
+        super().__delete__(obj)
+        if self._refresh_on_set:
+            obj._initialize()
+
+    @classmethod
+    def auto(
+        cls,
+        *,
+        refresh_on_set: bool = False,
+        strict_type: bool = False,
+        cache: bool = True,
+        depends_on: str | list[str] | None = None,
+        **kwargs,
+    ):
+        """Automatically set this method as param's `auto_callback`
+
+        If cached is not enabled, the value will be recalculated everytime. Otherwise,
+        the value will be recalculated in case all other nodes and parameters that
+        this node depends on have changed.
+
+        As comparing all values for cache can be expensive, you can list the name
+        of relevant nodes and params in `depends_on` to limit the comparison to
+        only these nodes and params.
+
+        Args:
+            refresh_on_set: whether to refresh the graph when the parameter is set
+            strict_type: whether to check the type of the value when the param is set
+            cache: whether to cache the value of the parameter
+            depends_on: the name of nodes and params that this node depends on
+        """
+        return super().auto(
+            cache=cache,
+            depends_on=depends_on,
+            refresh_on_set=refresh_on_set,
+            strict_type=strict_type,
+            **kwargs,
+        )
+
+    @classmethod
+    def default(
+        cls,
+        *,
+        refresh_on_set: bool = False,
+        strict_type: bool = False,
+        **kwargs,
+    ):
+        """Automatically set this method as param's `default_callback`
+
+        When this param is accessed while unset, this method will return the default
+        value
+
+        Args:
+            refresh_on_set: whether to refresh the graph when the parameter is set
+            strict_type: whether to check the type of the value when the param is set
+        """
+        return super().default(
+            refresh_on_set=refresh_on_set,
+            strict_type=strict_type,
+            **kwargs,
+        )
+
+    def to_dict(self) -> dict:
+        """Return the internal state of the Param as a dict"""
+        d = super().to_dict()
+        d["refresh_on_set"] = self._refresh_on_set
+        d["strict_type"] = self._strict_type
+        return d
+
+
+class Node(FunctionAttribute[NodeAttr]):
+    """Control the behavior of a node in a Compose
+
+    Args:
+        default: default value of the parameter
+        default_callback: callback function to generate default attribute value. This
+            callback takes in the Compose object and output the default value.
+        auto_callback: callback function to generate attribute value. This
+            callback takes in the Compose object and output the default value.
+        cache: if True, the value of the parameter will not be cached and will be
+            recalculated everytime it is accessed (requires `auto_callback`)
+        depends_on: if set, the value of the parameter will be calculated from the
+            values of the depends_on parameters (requires `cache=True`)
+        help: help message for the attribute
+        input: the input signature of the node
+        output: the output signature of the node
+    """
+
+    def __init__(
+        self,
+        default: type[NodeAttr] | ObjectInitDeclaration[NodeAttr] | unset_ = unset,
+        *,
+        default_callback: Callable[[Any], NodeAttr] | unset_ = unset,
+        auto_callback: Callable[[Any], NodeAttr] | unset_ = unset,
+        cache: bool = False,
+        depends_on: str | list[str] | None = None,
+        help: str = "",
+        input: unset_ | dict[str, Any] = unset,
+        output: Any = unset,
+        **extras,
+    ):
+        if inspect.isclass(default) and issubclass(default, Compose):
+            default = cast(ObjectInitDeclaration, ObjectInitDeclaration(default))
+        super().__init__(
+            default=default,
+            default_callback=default_callback,
+            auto_callback=auto_callback,
+            cache=cache,
+            depends_on=depends_on,
+            help=help,
+            **extras,
+        )
+
+        self._input: unset_ | dict[str, Any] = input
         self._output: Any = output
 
         has_run_method = callable(getattr(default, "run", None))
-        if self._input == empty and has_run_method:
+        if self._input == unset and has_run_method:
             self._input = input_signature(default.run)  # type: ignore
-        if self._output == empty and has_run_method:
+        if self._output == unset and has_run_method:
             self._output = output_signature(default.run)  # type: ignore
 
     @overload
-    def __get__(self, obj: None, type_: Optional[Type["Compose"]]) -> "Node":
+    def __get__(self, obj: None, _: type[Compose] | None) -> Node:
         ...
 
     @overload
-    def __get__(
-        self, obj: "Compose", type_: Optional[Type["Compose"]]
-    ) -> NodeAttribute:
+    def __get__(self, obj: Compose, _: type[Compose] | None) -> NodeAttr:
         ...
 
-    def __get__(
-        self, obj: Optional["Compose"], type_: Optional[Type["Compose"]] = None
-    ) -> Union[NodeAttribute, "Node"]:
-        if obj is None:
-            return self
-
-        if not isinstance(obj, Compose):
-            raise ValueError("Node can only be used with Compose")
-
-        if self._depends_on:
-            self._calculate_from_depends_on(obj, type_)
-        elif self._name not in obj.__ff_nodes__ or self._no_cache:
-            if self._default_callback:
-                value = self._default_callback(obj, type_)
-            elif self._default != empty:
-                value = self._default(**self._default_kwargs)
-            else:
-                raise AttributeError(
-                    f"Node {self._name} is not set and has no default value"
-                )
-
-            obj.__ff_nodes__[self._name] = value
-
-        obj._prepare_child(obj.__ff_nodes__[self._name], self._name)
-
-        if not isinstance(obj.__ff_nodes__[self._name], Compose):
-            raise ValueError(f"Node {obj.__class__}.{self._name} is not a Compose")
-
-        return cast(NodeAttribute, obj.__ff_nodes__[self._name])
-
-    def __str__(self):
-        text = ", ".join(
-            [
-                f"{key}={value}"
-                for key, value in self.to_dict().items()
-                if not key.startswith("_")
-            ]
-        )
-        return f"{self.__class__.__name__}({text})"
-
-    def __repr__(self):
-        return str(self)
-
-    def _calculate_from_depends_on(
-        self, obj: "Compose", type_: Optional[Type["Compose"]] = None
-    ):
-        """Calculate the value of the parameter from the depends_on"""
-        if not self._depends_on:
-            return
-
-        ids = {}
-        for target in self._depends_on:
-            old_id = obj.__ff_depends__[self._name].get(target, -1)
-            new_id = id(getattr(obj, target))
-            ids[target] = new_id
-            if old_id != new_id:
-                if self._default_callback is None:
-                    raise ValueError(
-                        f"Parameter {self._name} depends on {self._depends_on} "
-                        "is a computed param and require default_callback"
-                    )
-                value = self._default_callback(obj, type_)
-                obj.__ff_nodes__[self._name] = value
-                for target_ in self._depends_on:
-                    if target_ in ids:
-                        obj.__ff_depends__[self._name][target_] = ids[target_]
-                    else:
-                        obj.__ff_depends__[self._name][target_] = id(
-                            getattr(obj, target_)
-                        )
-                break
-
-    def __set__(self, obj: "Compose", value: NodeAttribute):
-        if not isinstance(value, Compose):
-            raise ValueError(f"Node can only be used with Compose, got {type(value)}")
-
-        obj.__ff_nodes__[self._name] = value
-
-    def __delete__(self, obj: "Compose"):
-        if self._name in obj.__ff_nodes__:
-            del obj.__ff_nodes__[self._name]
-
-    def __set_name__(self, owner, name):
-        self._name = name
-        self._owner = owner
+    def __get__(self, obj: Compose | None, _: type[Compose] | None = None):
+        value = super().__get__(obj, _)
+        if obj:
+            value = cast(NodeAttr, value)
+            obj._prepare_child(value, self._name)
+            if not isinstance(value, Compose):
+                raise ValueError(f"Node {obj.__class__}.{self._name} is not a Compose")
+            return value
+        return value
 
     @classmethod
-    def decorate(
+    def auto(
         cls,
-        depends_on: Optional[Union[str, List[str]]] = None,
-        no_cache: bool = False,
-        help: str = "",
-        input: Union[Type["empty"], Dict[str, Any]] = empty,
-        output: Any = empty,
+        *,
+        input: unset_ | dict[str, Any] = unset,
+        output: Any = unset,
+        cache: bool = True,
+        depends_on: str | list[str] | None = None,
         **kwargs,
     ):
-        """Automatically set the `defeault_callback`"""
-        if "default_callback" in kwargs:
-            raise InvalidNodeDefinition(
-                "Redundant `default_callback` in Node.decorate: "
-                f"({kwargs['default_callback']})"
-            )
+        """Automatically set this method as param's `auto_callback`
 
-        def inner(func):
-            help_: str = help if help else inspect.getdoc(func)
-            return cls(
-                default_callback=lambda obj, _: func(obj),
-                depends_on=depends_on,
-                no_cache=no_cache,
-                help=help_,
-                input=input,
-                output=output,
-                **kwargs,
-            )
+        If cached is not enabled, the value will be recalculated everytime. Otherwise,
+        the value will be recalculated in case all other nodes and parameters that
+        this node depends on have changed.
 
-        return inner
+        As comparing all values for cache can be expensive, you can list the name
+        of relevant nodes and params in `depends_on` to limit the comparison to
+        only these nodes and params.
+
+        Args:
+            refresh_on_set: whether to refresh the graph when the parameter is set
+            strict_type: whether to check the type of the value when the param is set
+            cache: whether to cache the value of the parameter
+            depends_on: the name of nodes and params that this node depends on
+        """
+        return super().auto(
+            cache=cache,
+            depends_on=depends_on,
+            input=input,
+            output=output,
+            **kwargs,
+        )
+
+    @classmethod
+    def default(
+        cls,
+        *,
+        input: unset_ | dict[str, Any] = unset,
+        output: Any = unset,
+        **kwargs,
+    ):
+        """Automatically set this method as param's `default_callback`
+
+        When this param is accessed while unset, this method will return the default
+        value
+
+        Args:
+            refresh_on_set: whether to refresh the graph when the parameter is set
+            strict_type: whether to check the type of the value when the param is set
+        """
+        return super().default(
+            input=input,
+            output=output,
+            **kwargs,
+        )
 
     def to_dict(self) -> dict:
         """Return the internal state of a node as dict"""
-        return {
-            "__type__": "node",
-            "default": self._default,
-            "default_kwargs": self._default_kwargs,
-            "default_callback": self._default_callback,
-            "help": self._help,
-            "depends_on": self._depends_on,
-            "no_cache": self._no_cache,
-            "input": self._input,
-            "output": self._output,
-            **self._extras,
-        }
-
-    def __persist_flow__(self):
-        """Return the state in a way that can be initiated"""
-        type_ = f"{self._owner.__module__}.{self._owner.__qualname__}"
-        export: dict = {"__type__": type_}
-
-        for key, value in self.to_dict().items():
-            try:
-                serialized = serialize(value)
-            except Exception as e:
-                logger.debug(f"{type_}.{self._name}.{key}: {e}... skip")
-                serialized = serialize(empty)
-            export[key] = serialized
-
-        return export
+        d = super().to_dict()
+        d["input"] = self._input
+        d["output"] = self._output
+        return d
 
 
 _node_cls = (
@@ -515,12 +635,12 @@ class MetaCompose(type):
             attrs[name] = desc
 
         try:
-            obj: Type["Compose"] = super().__new__(
+            obj: type[Compose] = super().__new__(
                 cls, clsname, bases, attrs  # type: ignore
             )
         except Exception as e:
             cause = getattr(e, "__cause__", None)
-            if isinstance(cause, InvalidParamDefinition):
+            if isinstance(cause, InvalidAttrDefinition):
                 raise cause from None
             raise e from None
 
@@ -539,6 +659,9 @@ class MetaCompose(type):
         return obj
 
 
+@dataclass_transform(
+    eq_default=False, kw_only_default=True, field_specifiers=(Param, Node)
+)
 class Compose(metaclass=MetaCompose):
     """Base class that handle basic logic of a composable component
 
@@ -592,18 +715,18 @@ class Compose(metaclass=MetaCompose):
         "set_run",
         "specs",
         "visualize",
+        "withx",
     ]
 
-    def __init__(self, _params: Optional[dict] = None, /, **params):
+    def __init__(self, _params: dict | None = None, /, **params):
         self.last_run: RunTracker
-        self.__ff_params__: Dict[str, Any] = {}
-        self.__ff_nodes__: Dict[str, Compose] = {}
-        self.__ff_depends__: Dict[str, Dict[str, int]] = defaultdict(dict)
-        self.__ff_run_kwargs__: Dict[str, Any] = {}
-        self._ff_params: List[str] = []
-        self._ff_nodes: List[str] = []
+        self._attrx: dict[str, dict[str, Any]] = {"Node": {}, "Param": {}}
+        self.__ff_depends__: dict[str, dict[str, int]] = defaultdict(dict)
+        self.__ff_run_kwargs__: dict[str, Any] = {}
+        self._ff_params: list[str] = []
+        self._ff_nodes: list[str] = []
         self._ff_config: Config = Config(cls=self.__class__)
-        self._ff_context: Optional[Context] = None
+        self._ff_context: Context | None = None
 
         # Initialize temporary execution variables
         self._variablex()
@@ -645,7 +768,7 @@ class Compose(metaclass=MetaCompose):
         """Set temporary variables, only available during execution. Refresh when
         execution finishes
         """
-        self.__ff_run_temp_kwargs__: Dict[str, Any] = {}  # temp run kwargs
+        self.__ff_run_temp_kwargs__: dict[str, Any] = {}  # temp run kwargs
         self._ff_in_run: bool = False  # whether the pipeline is in the run process
         self._ff_prefix: str = ""  # only root node has prefix as empty ""
         self._ff_name: str = ""  # only root node has name as empty ""
@@ -717,7 +840,7 @@ class Compose(metaclass=MetaCompose):
         if not self._ff_prefix:  # only root node has prefix as empty
             # administrative setup
             self._ff_run_id = self.config.run_id
-            self._ff_flow_name: str = self.config.compose_name
+            self._ff_flow_name = self.config.compose_name
             self.context.create_context(context=self.flow_qualidx())
             self.context.set("run_id", self._ff_run_id, context=self.flow_qualidx())
 
@@ -751,7 +874,7 @@ class Compose(metaclass=MetaCompose):
     def __str__(self):
         return f"{self.__class__.__name__} (nodes: {self._ff_nodes})"
 
-    def _get_context(self) -> Optional[Context]:
+    def _get_context(self) -> Context | None:
         return self._ff_context
 
     def _set_context(self, context: Context) -> None:
@@ -766,11 +889,11 @@ class Compose(metaclass=MetaCompose):
     context = property(_get_context, _set_context, _del_context)
 
     @property
-    def nodes(self) -> List[str]:
+    def nodes(self) -> list[str]:
         return self._ff_nodes
 
     @property
-    def params(self) -> Dict[str, Any]:
+    def params(self) -> dict[str, Any]:
         params = {}
         for key in self._ff_params:
             try:
@@ -803,7 +926,7 @@ class Compose(metaclass=MetaCompose):
         self._ff_initializing = False
 
     @classmethod
-    def _collect_registered_params_and_nodes(cls) -> Tuple[List[str], List[str]]:
+    def _collect_registered_params_and_nodes(cls) -> tuple[list[str], list[str]]:
         """Return the list of all params and nodes registered in the Compose
 
         Returns:
@@ -821,7 +944,7 @@ class Compose(metaclass=MetaCompose):
 
     @classmethod
     @lru_cache
-    def _protected_keywords(cls) -> Dict[str, type]:
+    def _protected_keywords(cls) -> dict[str, type]:
         """Return the protected keywords and the class that defines each of them
 
         This method will concatenate the `_keywords` of all classes in the mro.
@@ -834,10 +957,10 @@ class Compose(metaclass=MetaCompose):
                 keywords[keyword] = each_cls
         return keywords
 
-    def _make_composable(self, value) -> "Compose":
+    def _make_composable(self, value) -> Compose:
         return ComposeProxy(ff_original_obj=value)
 
-    def _prepare_child(self, child: "Compose", name: str):
+    def _prepare_child(self, child: Compose, name: str):
         if self._ff_in_run:
             child._ff_prefix = self.abs_pathx()
             child._ff_name = (
@@ -857,6 +980,18 @@ class Compose(metaclass=MetaCompose):
         # 3 run the flow with the fake argument
         # 4 track the graph
         return trace_pipelne_run(cls)
+
+    @classmethod
+    def withx(cls, **kwargs) -> Any:  # hacky way to make mypy happy
+        """Return lazy init object that has the supplied params as default
+
+        Args:
+            kwargs: the keywords and params to be set as default
+
+        Returns:
+            A new Compose with the supplied keywords and params set as default
+        """
+        return ObjectInitDeclaration(cls, **kwargs)
 
     def apply(self, fn: Callable):
         """Apply a function recursively to all nodes in a pipeline"""
@@ -921,10 +1056,15 @@ class Compose(metaclass=MetaCompose):
             attr_value = getattr(cls, attr)
             if isinstance(attr_value, Node):
                 value = attr_value.__persist_flow__()
-                if isinstance(attr_value._default, type) and issubclass(
-                    attr_value._default, Compose
-                ):
-                    value["default"] = attr_value._default.describe()  # type:ignore
+                if isinstance(
+                    attr_value._default, ObjectInitDeclaration
+                ) and issubclass(attr_value._default.cls, Compose):
+                    value["default"] = attr_value._default.cls.describe()  # type:ignore
+                    value["default_kwargs"] = {
+                        key: value
+                        for key, value in attr_value._default.params.items()
+                        if not isinstance(value, ObjectInitDeclaration)
+                    }
                 nodes[attr] = value
             elif isinstance(attr_value, Param):
                 params[attr] = attr_value.__persist_flow__()
@@ -997,7 +1137,7 @@ class Compose(metaclass=MetaCompose):
 
         return getattr(self, path)
 
-    def missing(self) -> Dict[str, List[str]]:
+    def missing(self) -> dict[str, list[str]]:
         """Return the list of missing params and nodes"""
         params, nodes = [], []
         for attr in self._ff_params:
@@ -1057,16 +1197,16 @@ class Compose(metaclass=MetaCompose):
         elif isinstance(obj, type) and issubclass(obj, Compose):
             func = obj.run
 
-        if specs["__type__"] == "param":
+        if specs["__type__"] == "theflow.base.Param":
             return isinstance(obj, specs["type"])
-        elif specs["__type__"] == "node":
+        elif specs["__type__"] == "theflow.base.Node":
             reference_input = specs["input"]
             reference_output = specs["output"]
             target_input = input_signature(func)
             target_output = output_signature(func)
 
             ok_input, ok_output = False, False
-            if reference_input == empty:
+            if reference_input == unset:
                 ok_input = True
             else:
                 for name, annot in reference_input.items():
@@ -1077,7 +1217,7 @@ class Compose(metaclass=MetaCompose):
                     if not ok_input:
                         break
 
-            if reference_output == empty:
+            if reference_output == unset:
                 ok_output = True
             else:
                 ok_output = is_compatible_with(target_output, reference_output)
@@ -1085,7 +1225,7 @@ class Compose(metaclass=MetaCompose):
 
         raise ValueError(f"{path} is not a param or a node")
 
-    def log_progress(self, name: Optional[str] = None, **kwargs):
+    def log_progress(self, name: str | None = None, **kwargs):
         """Log the progress to the name"""
         if name is None:
             name = self.abs_pathx()
@@ -1207,10 +1347,6 @@ class ComposeProxy(Compose):
 
         return wrapper
 
-    def run(self, *args, **kwargs):
-        """Pass-through to the original object"""
-        return self.ff_original_obj.run(*args, **kwargs)
-
     def __call__(self, *args, **kwargs):
         if self._ff_context is None:
             self._ff_context = init_object(settings.CONTEXT, safe=False)
@@ -1220,9 +1356,6 @@ class ComposeProxy(Compose):
         )
 
     def __getattr__(self, name):
-        if name.startswith("_"):
-            return super().__getattr__(name)
-
         if "ff_original_obj" not in self._ff_params:
             raise AttributeError(
                 f"{self.__class__.__qualname__} object has no attribute {name}"
@@ -1235,3 +1368,8 @@ class ComposeProxy(Compose):
         if callable(attr):
             attr = self._create_callable(attr)
         return attr
+
+    def run(self, *args, **kwargs) -> Any:
+        if hasattr(self.ff_original_obj, "run") and callable(self._ff_original_obj.run):
+            return self.ff_original_obj.run(*args, **kwargs)
+        raise NotImplementedError(f"{self.ff_original_obj}.run doesn't exist")

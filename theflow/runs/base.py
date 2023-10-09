@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import pickle
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -31,28 +33,29 @@ class RunManager:
 
     def list(self) -> list:
         """List all runs"""
-        import pandas as pd  # TODO: reimplement json_normalize
+        # import pandas as pd  # TODO: reimplement json_normalize
 
-        output = []
-        for each_dir in self.dir.iterdir():
-            if not each_dir.is_dir():
-                continue
+        # output = []
+        # for each_dir in self.dir.iterdir():
+        #     if not each_dir.is_dir():
+        #         continue
 
-            run_info = {"name": each_dir.name}
-            with (each_dir / RunStructure.output).open("rb") as fi:
-                run_info.update(
-                    pd.json_normalize({"output": pickle.load(fi)}).to_dict(
-                        orient="records"
-                    )[0]
-                )
-            with (each_dir / RunStructure.input).open("rb") as fi:
-                input_ = pickle.load(fi)
-                input_ = {"input": {"args": input_["args"], **input_["kwargs"]}}
-                run_info.update(pd.json_normalize(input_).to_dict(orient="records")[0])
+        #     run_info = {"name": each_dir.name}
+        #     with (each_dir / RunStructure.output).open("rb") as fi:
+        #         run_info.update(
+        #             pd.json_normalize({"output": pickle.load(fi)}).to_dict(
+        #                 orient="records"
+        #             )[0]
+        #         )
+        #     with (each_dir / RunStructure.input).open("rb") as fi:
+        #         input_ = pickle.load(fi)
+        #         input_ = {"input": {"args": input_["args"], **input_["kwargs"]}}
+        #         run_info.update(pd.json_normalize(input_).to_dict(orient="records")[0])
 
-            output.append(run_info)
+        #     output.append(run_info)
 
-        return output
+        # return output
+        return []
 
     def get(self):
         pass
@@ -77,9 +80,9 @@ class RunTracker:
         config: the config of the run
     """
 
-    def __init__(self, obj: "Compose", which_progress: str = "__progress__"):
+    def __init__(self, obj: Compose, which_progress: str = "__progress__"):
         self._obj = obj
-        self._context: "Context" = obj.context
+        self._context: Context = obj.context
 
         self._config: dict = {}
         self._progress = f"{obj.namex()}|{obj.idx()}|{which_progress}"
@@ -101,7 +104,7 @@ class RunTracker:
         value.update(kwargs)
         self._context.set(name, value, context=self._progress)
 
-    def logs(self, name: Optional[str] = None) -> Any:
+    def logs(self, name: str | None = None) -> dict:
         """Get the information of each step
 
         Args:
@@ -112,13 +115,13 @@ class RunTracker:
         """
         return self._context.get(name, context=self._progress)
 
-    def steps(self):
+    def steps(self) -> list[str]:
         """Get the steps of the run
 
         Returns:
             the steps of the run
         """
-        return self._context.get(context=self._progress).keys()
+        return list(self.logs(name=None).keys())
 
     def input(self, name: str = ".") -> Any:
         """Get the input of a pipeline
@@ -158,7 +161,7 @@ class RunTracker:
         """
         return self._context.get("id", context=self._progress)
 
-    def load(self, run_path: Union[str, Path]):
+    def load(self, run_path: str | Path):
         """Load a run
 
         Args:
@@ -172,7 +175,7 @@ class RunTracker:
             self._context.set(key, value, context=self._progress)
 
     @property
-    def config(self) -> Optional[dict]:
+    def config(self) -> dict | None:
         """Get the config of the run
 
         Returns:

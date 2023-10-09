@@ -140,7 +140,7 @@ class RetrieveArticle(Compose):
     retrieve_p_pattern: str = r"^<p id=.*?>.*?</p>$"      # <1>
     remove_tag_pattern: str = r"<.*?>"                    # <1>
 
-    @Param.decorate(depends_on=["remove_tag_pattern"])    # <2>
+    @Param.auto(depends_on=["remove_tag_pattern"])        # <2>
     def remove_tag_obj(self):                             # <2>
         return re.compile(self.remove_tag_pattern)        # <2>
 
@@ -304,8 +304,7 @@ from theflow import Node
 class LearnFromWikipedia(Compose):
     search: Compose   # <1>
     retrieve: Node[Compose] = Node(                         # <2>
-        default=RetrieveArticle,
-        default_kwargs={"full_text":False}
+        default=RetrieveArticle.withx(full_text=False),
     )                                                       # <2>
 
     def run(self, concept: str, limit: int = 2) -> str:

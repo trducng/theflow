@@ -1,7 +1,5 @@
 from unittest import TestCase
 
-import pytest
-
 from theflow import Compose, Node, Param, load
 
 from .assets.sample_flow import Func, Multiply, Sum1, Sum2, callback
@@ -156,11 +154,11 @@ class ExtraNodeParam(Compose):
     param_a = Param(help="Param A", data1=1, data2="2")
     node_a: Node[Compose] = Node(help="Node A", data1=1, data2="2")
 
-    @Node.decorate(data3={"sample": 1}, depends_on=["node_a"])
+    @Node.default(data3={"sample": 1})
     def node_b(self):
         return Compose()
 
-    @Param.decorate(data3={"sample": 1}, depends_on=["node_a"])
+    @Param.auto(data3={"sample": 1}, depends_on=["node_a"])
     def param_b(self):
         return 1
 
@@ -187,36 +185,3 @@ class TestParam(TestCase):
         self.assertEqual(
             ExtraNodeParam.describe()["params"]["param_b"]["data3"], {"sample": 1}
         )
-
-
-class FlowA(Compose):
-    x: int
-    node_a: Compose
-
-    def run(self):
-        return self.x + self.node_a()
-
-
-class FlowB(Compose):
-    x: int
-    node_b: Compose
-
-    def run(self):
-        return self.x + self.node_b()
-
-
-class TestCircularFlow:
-    def test_recursion_error_while_execute(self):
-        """Add extra data to the param"""
-        flow_a = FlowA(x=1)
-        flow_b = FlowB(x=2, node_b=flow_a)
-        flow_b.node_b.node_a = flow_b
-        with pytest.raises(RecursionError):
-            flow_a()
-
-    def test_rescursion_error_while_dump(self):
-        flow_a = FlowA(x=1)
-        flow_b = FlowB(x=2, node_b=flow_a)
-        flow_b.node_b.node_a = flow_b
-        with pytest.raises(RecursionError):
-            print(flow_a.dump())

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import ast
 import inspect
 from collections import defaultdict
@@ -73,7 +75,7 @@ class PipelineRunTracer(ast.NodeVisitor):
     def __init__(self):
         self.logic_flow = []
         self.in_run = False
-        self._stacks = [defaultdict(list)]
+        self._stacks: list[dict[str, list]] = [defaultdict(list)]
         self._last_call = None
 
     def get_creator_of(self, name, default=None):
@@ -89,7 +91,7 @@ class PipelineRunTracer(ast.NodeVisitor):
         self._stacks[-1][name] = value
 
     def stack_begin(self):
-        stack = defaultdict(list)
+        stack: dict[str, list] = defaultdict(list)
         self._stacks.append(stack)
         return stack
 
