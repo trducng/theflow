@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import inspect
 import logging
-from abc import abstractmethod
+from abc import ABCMeta, abstractmethod
 from collections import defaultdict
 from functools import lru_cache
 from typing import _GenericAlias  # type: ignore
@@ -618,7 +618,7 @@ _param_cls = (
 )
 
 
-class MetaCompose(type):
+class MetaCompose(ABCMeta):
     def __new__(cls, clsname, bases, attrs):
         # Make sure all nodes and params have the Node and Param descriptor
         for name, value in attrs.get("__annotations__", {}).items():

@@ -99,6 +99,9 @@ class TestParamCallback:
             super().__init__(*args, **kwargs)
             self._z_call_counted = 0
 
+        def run(self):
+            ...
+
         @Param.default()
         def y(self):
             """If y is not set, it will be 2 * x"""
@@ -117,6 +120,9 @@ class TestParamCallback:
             super().__init__(*args, **kwargs)
             self._z_call_counted = 0
 
+        def run(self):
+            ...
+
         @Param.default()
         def y(self):
             """If y is not set, it will be 2 * x"""
@@ -134,6 +140,9 @@ class TestParamCallback:
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self._z_call_counted = 0
+
+        def run(self):
+            ...
 
         @Param.default()
         def y(self):

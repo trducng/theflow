@@ -15,6 +15,9 @@ class MiddleCompose(Compose):
             "theflow.middleware.CachingMiddleware": False,
         }
 
+    def run(self):
+        ...
+
 
 @patch("theflow.middleware.TrackProgressMiddleware.__init__", return_value=None)
 def test_middleware_init_called(init, set_theflow_settings_module):

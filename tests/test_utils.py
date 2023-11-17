@@ -407,7 +407,7 @@ class TestNaiveHash(TestCase):
         self.assertEqual(naivehash()({1: 2}), "b797b7645bcef16d8fce546ca5d1dc03")
         self.assertEqual(naivehash()({"1": 2}), "7296fb42d9464d15a65e71f671b2e480")
         self.assertEqual(
-            naivehash()({(1, 2): A(1, 2)}), "cde6495790f5ed6d74abff45565dc2bc"
+            naivehash()({(1, 2): A(1, 2)}), "345b31c73b28b9c3ffaa7d74b252702c"
         )
         self.assertEqual(naivehash()(set()), "9ce70b11fda866035eb013c8de5b8692")
         self.assertEqual(naivehash()({1, 2}), "84a6c62c58e7728fde564a8e3d295668")
@@ -415,9 +415,9 @@ class TestNaiveHash(TestCase):
         self.assertEqual(naivehash()({"1", "2"}), "26005d20f5d6a994175dc966c7892fae")
 
     def test_hash_python_cls(self):
-        self.assertEqual(naivehash()(A), "3c16082e2c30e0e18cbdff05d42451f0")
-        self.assertEqual(naivehash()(B), "cd08382043e2c90198b483b0aa1ab6b5")
+        self.assertEqual(naivehash()(A), "661461b328f78c906e1c3414829e8ef1")
+        self.assertEqual(naivehash()(B), "8a573a42d274081881992b0e0b9ed743")
 
     def test_hash_python_instance(self):
-        self.assertEqual(naivehash()(A(1, 2)), "24a201d64908207678adf166c2f9a8ce")
-        self.assertEqual(naivehash()(B(1, 2)), "c99295f9720cbb68b73bb6e3af34b96a")
+        self.assertEqual(naivehash()(A(1, 2)), "a3b30166e8d9c76ec6fadc524618e702")
+        self.assertEqual(naivehash()(B(1, 2)), "9f3ae35d4506b1c469236d0c4707f79a")
