@@ -151,12 +151,9 @@ class TestComposeSaveAndLoad(TestCase):
 
 
 class ExtraNodeParam(Compose):
-    param_a = Param(help="Param A", data1=1, data2="2")
-    node_a: Node[Compose] = Node(help="Node A", data1=1, data2="2")
-
-    @Node.default(data3={"sample": 1})
-    def node_b(self):
-        return Compose()
+    param_a: str = Param(help="Param A", data1=1, data2="2")
+    node_a: Compose = Node(help="Node A", data1=1, data2="2")
+    node_b: Compose = Node(default_callback=lambda _: Compose(), data3={"sample": 1})
 
     @Param.auto(data3={"sample": 1}, depends_on=["node_a"])
     def param_b(self):

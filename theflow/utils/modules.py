@@ -175,7 +175,7 @@ class ObjectInitDeclaration(Generic[T]):
     values of a class parameter.
     """
 
-    def __init__(self, cls: Type[T], **params: dict):
+    def __init__(self, cls: Type[T], **params):
         self.cls: Type[T] = cls
         self.params: dict = params
 

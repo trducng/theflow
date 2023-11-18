@@ -41,9 +41,9 @@ def is_node_type(annotation) -> bool:
         annotation = annotation._evaluate(globals(), locals(), frozenset())
         return is_node_type(annotation)
     if isinstance(annotation, type):
-        return issubclass(annotation, Compose) or issubclass(annotation, Node)
+        return issubclass(annotation, Compose) or issubclass(annotation, NodeAttr)
     if isinstance(annotation, _GenericAlias):
-        if issubclass(annotation.__origin__, Node):
+        if issubclass(annotation.__origin__, NodeAttr):
             return True
     return False
 
@@ -59,12 +59,12 @@ class unset_:
 
 unset = unset_()
 
-Attr = TypeVar("Attr")
-ParamAttr = TypeVar("ParamAttr")
-NodeAttr = TypeVar("NodeAttr", bound="Compose")
+_Attr = TypeVar("_Attr")
+_PAttr = TypeVar("_PAttr")
+_NAttr = TypeVar("_NAttr", bound="Compose")
 
 
-class FunctionAttribute(Generic[Attr]):
+class Attr(Generic[_Attr]):
     """Decriptor to store function attributes
 
     Args:
@@ -82,16 +82,16 @@ class FunctionAttribute(Generic[Attr]):
 
     def __init__(
         self,
-        default: Attr | ObjectInitDeclaration[Attr] | unset_ | type = unset,
+        default: _Attr | ObjectInitDeclaration[_Attr] | unset_ | type = unset,
         *,
-        default_callback: Callable[[Any], Attr] | unset_ = unset,
-        auto_callback: Callable[[Any], Attr] | unset_ = unset,
+        default_callback: Callable[[Any], _Attr] | unset_ = unset,
+        auto_callback: Callable[[Any], _Attr] | unset_ = unset,
         cache: bool = False,
         depends_on: str | list[str] | None = None,
         help: str = "",
         **extras,
     ):
-        self._default: Attr = cast(Attr, default)
+        self._default: _Attr = cast(_Attr, default)
         self._default_callback = default_callback
         self._auto_callback = auto_callback
         self._help = help
@@ -120,16 +120,16 @@ class FunctionAttribute(Generic[Attr]):
         return str(self)
 
     @overload
-    def __get__(self, obj: None, _: type[Compose] | None) -> FunctionAttribute:
+    def __get__(self, obj: None, _: type[Compose] | None) -> Attr:
         ...
 
     @overload
-    def __get__(self, obj: Compose, _: type[Compose] | None) -> Attr:
+    def __get__(self, obj: Compose, _: type[Compose] | None) -> _Attr:
         ...
 
     def __get__(
         self, obj: Compose | None, _: type[Compose] | None = None
-    ) -> Attr | FunctionAttribute:
+    ) -> _Attr | Attr:
         """Get the value of the parameter"""
         if obj is None:
             return self
@@ -149,7 +149,7 @@ class FunctionAttribute(Generic[Attr]):
                 value = self._default()
             else:
                 value = self._default
-            value = cast(Attr, value)
+            value = cast(_Attr, value)
         elif not isinstance(self._default_callback, unset_):
             value = self._default_callback(obj)
         else:
@@ -200,7 +200,7 @@ class FunctionAttribute(Generic[Attr]):
 
         return export
 
-    def _auto_calculate_param(self, obj: Compose) -> Attr:
+    def _auto_calculate_param(self, obj: Compose) -> _Attr:
         """Calculate the value of the auto-parameter
 
         Args:
@@ -222,9 +222,12 @@ class FunctionAttribute(Generic[Attr]):
             for attr in dir(obj.__class__):
                 if attr == self._name:
                     continue
-                if isinstance(getattr(obj.__class__, attr), Param):
+
+                # TODO: leaky abstraction of child class here. Attr
+                # shouldn't have knowledge about ParamAttr or NodeAttr
+                if isinstance(getattr(obj.__class__, attr), ParamAttr):
                     self._to_check.append(attr)
-                if isinstance(getattr(obj.__class__, attr), Node):
+                if isinstance(getattr(obj.__class__, attr), NodeAttr):
                     self._to_check.append(attr)
 
         ids = {}
@@ -285,6 +288,8 @@ class FunctionAttribute(Generic[Attr]):
         **kwargs,
     ):
         """Method decorator to create default callback"""
+        # TODO: can consider remove .default, since this is not commonly used and can
+        # cause visual confusion with .auto, which is much more frequently used.
         if kwargs.get("help"):
             raise ValueError(
                 "Please set `help` as function docstring when use `default` decorator"
@@ -293,7 +298,7 @@ class FunctionAttribute(Generic[Attr]):
         def inner(func):
             help_: str = inspect.getdoc(func) or ""
             return cls(
-                default_callback=lambda obj: func(obj),
+                default_callback=func,
                 help=help_,
                 refresh_on_set=refresh_on_set,
                 strict_type=strict_type,
@@ -319,7 +324,7 @@ class FunctionAttribute(Generic[Attr]):
         def inner(func):
             help_: str = inspect.getdoc(func) or ""
             return cls(
-                auto_callback=lambda obj: func(obj),
+                auto_callback=func,
                 help=help_,
                 depends_on=depends_on,
                 cache=cache,
@@ -342,7 +347,7 @@ class FunctionAttribute(Generic[Attr]):
         }
 
 
-class Param(FunctionAttribute[ParamAttr]):
+class ParamAttr(Attr[_PAttr]):
     """Control the behavior of a parameter in a Compose
 
     Args:
@@ -362,10 +367,10 @@ class Param(FunctionAttribute[ParamAttr]):
 
     def __init__(
         self,
-        default: ParamAttr | ObjectInitDeclaration[ParamAttr] | unset_ = unset,
+        default: _PAttr | ObjectInitDeclaration[_PAttr] | unset_ = unset,
         *,
-        default_callback: Callable[[Any], ParamAttr] | unset_ = unset,
-        auto_callback: Callable[[Any], ParamAttr] | unset_ = unset,
+        default_callback: Callable[[Any], _PAttr] | unset_ = unset,
+        auto_callback: Callable[[Any], _PAttr] | unset_ = unset,
         cache: bool = False,
         depends_on: str | list[str] | None = None,
         help: str = "",
@@ -415,7 +420,7 @@ class Param(FunctionAttribute[ParamAttr]):
         cache: bool = True,
         depends_on: str | list[str] | None = None,
         **kwargs,
-    ):
+    ) -> Callable[[Callable[[Any], _PAttr]], ParamAttr[_PAttr]]:
         """Automatically set this method as param's `auto_callback`
 
         If cached is not enabled, the value will be recalculated everytime. Otherwise,
@@ -447,7 +452,7 @@ class Param(FunctionAttribute[ParamAttr]):
         refresh_on_set: bool = False,
         strict_type: bool = False,
         **kwargs,
-    ):
+    ) -> Callable[[Callable[[Any], _PAttr]], ParamAttr[_PAttr]]:
         """Automatically set this method as param's `default_callback`
 
         When this param is accessed while unset, this method will return the default
@@ -471,7 +476,7 @@ class Param(FunctionAttribute[ParamAttr]):
         return d
 
 
-class Node(FunctionAttribute[NodeAttr]):
+class NodeAttr(Attr[_NAttr]):
     """Control the behavior of a node in a Compose
 
     Args:
@@ -491,10 +496,10 @@ class Node(FunctionAttribute[NodeAttr]):
 
     def __init__(
         self,
-        default: type[NodeAttr] | ObjectInitDeclaration[NodeAttr] | unset_ = unset,
+        default: type[_NAttr] | ObjectInitDeclaration[_NAttr] | unset_ = unset,
         *,
-        default_callback: Callable[[Any], NodeAttr] | unset_ = unset,
-        auto_callback: Callable[[Any], NodeAttr] | unset_ = unset,
+        default_callback: Callable[[Any], _NAttr] | unset_ = unset,
+        auto_callback: Callable[[Any], _NAttr] | unset_ = unset,
         cache: bool = False,
         depends_on: str | list[str] | None = None,
         help: str = "",
@@ -524,17 +529,17 @@ class Node(FunctionAttribute[NodeAttr]):
             self._output = output_signature(default.run)  # type: ignore
 
     @overload
-    def __get__(self, obj: None, _: type[Compose] | None) -> Node:
+    def __get__(self, obj: None, _: type[Compose] | None) -> NodeAttr:
         ...
 
     @overload
-    def __get__(self, obj: Compose, _: type[Compose] | None) -> NodeAttr:
+    def __get__(self, obj: Compose, _: type[Compose] | None) -> _NAttr:
         ...
 
     def __get__(self, obj: Compose | None, _: type[Compose] | None = None):
         value = super().__get__(obj, _)
         if obj:
-            value = cast(NodeAttr, value)
+            value = cast(_NAttr, value)
             obj._prepare_child(value, self._name)
             if not isinstance(value, Compose):
                 raise ValueError(f"Node {obj.__class__}.{self._name} is not a Compose")
@@ -550,7 +555,7 @@ class Node(FunctionAttribute[NodeAttr]):
         cache: bool = True,
         depends_on: str | list[str] | None = None,
         **kwargs,
-    ):
+    ) -> Callable[[Callable[[Any], _NAttr]], NodeAttr[_NAttr]]:
         """Automatically set this method as param's `auto_callback`
 
         If cached is not enabled, the value will be recalculated everytime. Otherwise,
@@ -582,7 +587,7 @@ class Node(FunctionAttribute[NodeAttr]):
         input: unset_ | dict[str, Any] = unset,
         output: Any = unset,
         **kwargs,
-    ):
+    ) -> Callable[[Callable[[Any], _NAttr]], NodeAttr[_NAttr]]:
         """Automatically set this method as param's `default_callback`
 
         When this param is accessed while unset, this method will return the default
@@ -606,16 +611,150 @@ class Node(FunctionAttribute[NodeAttr]):
         return d
 
 
-_node_cls = (
+_node_cls: type[NodeAttr] = (
     init_object(settings.NODE_CLASS, safe=False)
     if getattr(settings, "NODE_CLASS", "")
-    else Node
+    else NodeAttr
 )
-_param_cls = (
+
+
+_param_cls: type[ParamAttr] = (
     init_object(settings.PARAM_CLASS, safe=False)
     if getattr(settings, "PARAM_CLASS", "")
-    else Param
+    else ParamAttr
 )
+
+
+class _ParamWrapper:
+    """Wrapper class to create a Param object
+
+    This way, users can declare Param with both Param(...) and Param.auto(...)"""
+
+    def __call__(
+        self,
+        default: _PAttr | ObjectInitDeclaration[_PAttr] | unset_ = unset,
+        *,
+        default_callback: Callable[[Any], _PAttr] | unset_ = unset,
+        auto_callback: Callable[[Any], _PAttr] | unset_ = unset,
+        cache: bool = False,
+        depends_on: str | list[str] | None = None,
+        help: str = "",
+        refresh_on_set: bool = False,
+        strict_type: bool = False,
+        **extras,
+    ) -> Any:
+        return _param_cls(
+            default=default,
+            default_callback=default_callback,
+            auto_callback=auto_callback,
+            cache=cache,
+            depends_on=depends_on,
+            help=help,
+            refresh_on_set=refresh_on_set,
+            strict_type=strict_type,
+            **extras,
+        )
+
+    def auto(
+        self,
+        *,
+        refresh_on_set: bool = False,
+        strict_type: bool = False,
+        cache: bool = True,
+        depends_on: str | list[str] | None = None,
+        **kwargs,
+    ) -> Callable[[Callable[[Any], _PAttr]], ParamAttr[_PAttr]]:
+        """Automatically set this method as param's `auto_callback`
+
+        If cached is not enabled, the value will be recalculated everytime. Otherwise,
+        the value will be recalculated in case all other nodes and parameters that
+        this node depends on have changed.
+
+        As comparing all values for cache can be expensive, you can list the name
+        of relevant nodes and params in `depends_on` to limit the comparison to
+        only these nodes and params.
+
+        Args:
+            refresh_on_set: whether to refresh the graph when the parameter is set
+            strict_type: whether to check the type of the value when the param is set
+            cache: whether to cache the value of the parameter
+            depends_on: the name of nodes and params that this node depends on
+        """
+        return _param_cls.auto(
+            cache=cache,
+            depends_on=depends_on,
+            refresh_on_set=refresh_on_set,
+            strict_type=strict_type,
+            **kwargs,
+        )
+
+
+class _NodeWrapper:
+    """Wrapper class to create a Node object
+
+    This way, users can declare Node with both Node(...) and Node.auto(...)"""
+
+    def __call__(
+        self,
+        default: type[_NAttr] | ObjectInitDeclaration[_NAttr] | unset_ = unset,
+        *,
+        default_callback: Callable[[Any], _NAttr] | unset_ = unset,
+        auto_callback: Callable[[Any], _NAttr] | unset_ = unset,
+        cache: bool = False,
+        depends_on: str | list[str] | None = None,
+        help: str = "",
+        input: unset_ | dict[str, Any] = unset,
+        output: Any = unset,
+        **extras,
+    ) -> Any:
+        return _node_cls(
+            default=default,
+            default_callback=default_callback,
+            auto_callback=auto_callback,
+            cache=cache,
+            depends_on=depends_on,
+            help=help,
+            input=input,
+            output=output,
+            **extras,
+        )
+
+    def auto(
+        self,
+        *,
+        input: unset_ | dict[str, Any] = unset,
+        output: Any = unset,
+        cache: bool = True,
+        depends_on: str | list[str] | None = None,
+        **kwargs,
+    ) -> Callable[[Callable[[Any], _NAttr]], NodeAttr[_NAttr]]:
+        """Automatically set this method as param's `auto_callback`
+
+        If cached is not enabled, the value will be recalculated everytime. Otherwise,
+        the value will be recalculated in case all other nodes and parameters that
+        this node depends on have changed.
+
+        As comparing all values for cache can be expensive, you can list the name
+        of relevant nodes and params in `depends_on` to limit the comparison to
+        only these nodes and params.
+
+        Args:
+            refresh_on_set: whether to refresh the graph when the parameter is set
+            strict_type: whether to check the type of the value when the param is set
+            cache: whether to cache the value of the parameter
+            depends_on: the name of nodes and params that this node depends on
+        """
+        return _node_cls.auto(
+            cache=cache,
+            depends_on=depends_on,
+            input=input,
+            output=output,
+            **kwargs,
+        )
+
+
+Node = _NodeWrapper()
+Param = _ParamWrapper()
 
 
 class MetaCompose(ABCMeta):
@@ -624,8 +763,9 @@ class MetaCompose(ABCMeta):
         for name, value in attrs.get("__annotations__", {}).items():
             if name.startswith("_"):
                 continue
-            if name in attrs and isinstance(attrs[name], (Node, Param)):
+            if name in attrs and isinstance(attrs[name], (NodeAttr, ParamAttr)):
                 continue
+            desc: NodeAttr | ParamAttr
             if is_node_type(value):
                 desc = _node_cls(default=attrs[name]) if name in attrs else _node_cls()
             else:
@@ -646,7 +786,7 @@ class MetaCompose(ABCMeta):
 
         # Raise invalid nodes and params
         for name, value in attrs.items():
-            if not isinstance(value, (Node, Param)):
+            if not isinstance(value, (NodeAttr, ParamAttr)):
                 continue
             if name.startswith("_"):
                 raise ValueError(f"Node and param name cannot start with _: {name}")
@@ -660,7 +800,9 @@ class MetaCompose(ABCMeta):
 
 
 @dataclass_transform(
-    eq_default=False, kw_only_default=True, field_specifiers=(Param, Node)
+    eq_default=False,
+    kw_only_default=True,
+    field_specifiers=(Param, Node),  # type: ignore
 )
 class Compose(metaclass=MetaCompose):
     """Base class that handle basic logic of a composable component
@@ -720,7 +862,7 @@ class Compose(metaclass=MetaCompose):
 
     def __init__(self, _params: dict | None = None, /, **params):
         self.last_run: RunTracker
-        self._attrx: dict[str, dict[str, Any]] = {"Node": {}, "Param": {}}
+        self._attrx: dict[str, dict[str, Any]] = {"NodeAttr": {}, "ParamAttr": {}}
         self.__ff_depends__: dict[str, dict[str, int]] = defaultdict(dict)
         self.__ff_run_kwargs__: dict[str, Any] = {}
         self._ff_params: list[str] = []
@@ -935,9 +1077,9 @@ class Compose(metaclass=MetaCompose):
         params, nodes = [], []
 
         for attr in dir(cls):
-            if isinstance(getattr(cls, attr), Node):
+            if isinstance(getattr(cls, attr), NodeAttr):
                 nodes.append(attr)
-            elif isinstance(getattr(cls, attr), Param):
+            elif isinstance(getattr(cls, attr), ParamAttr):
                 params.append(attr)
 
         return list(sorted(set(params))), list(sorted(set(nodes)))
@@ -1054,7 +1196,7 @@ class Compose(metaclass=MetaCompose):
 
         for attr in dir(cls):
             attr_value = getattr(cls, attr)
-            if isinstance(attr_value, Node):
+            if isinstance(attr_value, NodeAttr):
                 value = attr_value.__persist_flow__()
                 if isinstance(
                     attr_value._default, ObjectInitDeclaration
@@ -1066,7 +1208,7 @@ class Compose(metaclass=MetaCompose):
                         if not isinstance(value, ObjectInitDeclaration)
                     }
                 nodes[attr] = value
-            elif isinstance(attr_value, Param):
+            elif isinstance(attr_value, ParamAttr):
                 params[attr] = attr_value.__persist_flow__()
 
         return {
@@ -1123,7 +1265,7 @@ class Compose(metaclass=MetaCompose):
             return getattr(self, module).specs(subpath)
 
         definition = getattr(self.__class__, path)
-        if not isinstance(definition, (Param, Node)):
+        if not isinstance(definition, (ParamAttr, NodeAttr)):
             raise ValueError(f"{path} is not a param or a node")
 
         return definition.to_dict()
@@ -1197,9 +1339,9 @@ class Compose(metaclass=MetaCompose):
         elif isinstance(obj, type) and issubclass(obj, Compose):
             func = obj.run
 
-        if specs["__type__"] == "theflow.base.Param":
+        if specs["__type__"] == "theflow.base.ParamAttr":
             return isinstance(obj, specs["type"])
-        elif specs["__type__"] == "theflow.base.Node":
+        elif specs["__type__"] == "theflow.base.NodeAttr":
             reference_input = specs["input"]
             reference_output = specs["output"]
             target_input = input_signature(func)

@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from theflow.base import Compose, Node
+from theflow.base import Compose
 from theflow.utils.multiprocess import parallel
 
 
@@ -31,9 +31,9 @@ def allow_multiprocessing(kwargs):
 
 
 class MultiprocessingWorkFlow(Compose):
-    increment_by = Node(default=IncrementBy.withx(x=1))
-    decrement_by = Node(default=DecrementBy.withx(x=1))
-    multiply_by = Node(default=MultiplyBy.withx(x=2))
+    increment_by: Compose = IncrementBy.withx(x=1)
+    decrement_by: Compose = DecrementBy.withx(x=1)
+    multiply_by: Compose = MultiplyBy.withx(x=2)
 
     def run(self, x, times):
         y = self.decrement_by(x)

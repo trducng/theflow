@@ -6,7 +6,7 @@ import inspect
 import pkgutil
 import sys
 
-from ..base import Compose, Node, Param
+from ..base import Compose, NodeAttr, ParamAttr
 
 
 def get_compose_documentation(compose: type[Compose]) -> dict:
@@ -36,14 +36,14 @@ def get_compose_documentation(compose: type[Compose]) -> dict:
     params, nodes = {}, {}
     for name in dir(compose):
         attr = getattr(compose, name)
-        if isinstance(attr, Param):
+        if isinstance(attr, ParamAttr):
             params[name] = {
                 "desc": attr._help,
                 "type": attr._type,
                 "default": attr._default,
                 "depends_on": attr._depends_on,
             }
-        elif isinstance(attr, Node):
+        elif isinstance(attr, NodeAttr):
             nodes[name] = {
                 "desc": attr._help,
                 "type": attr._default,
