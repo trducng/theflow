@@ -78,6 +78,24 @@ def default_theflow_path(
     return flow_path
 
 
+def temp_path() -> str:
+    """Get the default temporary directory
+
+    Returns:
+        the default temporary directory
+    """
+    import os
+    import tempfile
+
+    default: str = os.environ.get("THEFLOW_TEMP_PATH", "")
+    if not default:
+        path = Path(tempfile.gettempdir(), f"theflow_{os.getlogin()}")
+    else:
+        path = Path(default)
+    path.mkdir(exist_ok=True, parents=True)
+    return str(path)
+
+
 def is_name_matched(name: str, pattern: str) -> bool:
     """Check if a name matches a pattern
 
