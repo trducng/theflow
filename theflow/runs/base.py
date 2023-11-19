@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 import yaml
 
 if TYPE_CHECKING:
-    from ..base import Compose
+    from ..base import Function
     from ..context import Context
 
 from ..storage import storage
@@ -73,14 +73,14 @@ class RunTracker:
     """Define run-related methods to track the information in the run
 
     Args:
-        obj: the Compose that contains necessary information to log info
+        obj: the Function that contains necessary information to log info
         which_progress: the name of the progress to store the run information. Can be
             useful to track multiple progresses in the same run. Default to
             "__progress__" which refers to the current progress.
         config: the config of the run
     """
 
-    def __init__(self, obj: Compose, which_progress: str = "__progress__"):
+    def __init__(self, obj: Function, which_progress: str = "__progress__"):
         self._obj = obj
         self._context: Context = obj.context
 

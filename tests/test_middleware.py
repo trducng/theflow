@@ -1,12 +1,12 @@
 from unittest import TestCase
 from unittest.mock import patch
 
-from theflow import Compose
+from theflow import Function
 
 from .assets.sample_flow import Func, Sum1
 
 
-class MiddleCompose(Compose):
+class MiddleFunction(Function):
     class Config:
         middleware_section = "middleware-test"
         middleware_switches = {
@@ -21,19 +21,19 @@ class MiddleCompose(Compose):
 
 @patch("theflow.middleware.TrackProgressMiddleware.__init__", return_value=None)
 def test_middleware_init_called(init, set_theflow_settings_module):
-    _ = MiddleCompose()
+    _ = MiddleFunction()
     init.assert_called()
 
 
 @patch("theflow.middleware.CachingMiddleware.__init__", return_value=None)
 def test_middleware_init_switched_off(init, set_theflow_settings_module):
-    _ = MiddleCompose()
+    _ = MiddleFunction()
     init.assert_not_called()
 
 
 @patch("theflow.middleware.SkipComponentMiddleware.__init__", return_value=None)
 def test_middleware_init_not_in_test(init, set_theflow_settings_module):
-    _ = MiddleCompose()
+    _ = MiddleFunction()
     init.assert_not_called()
 
 

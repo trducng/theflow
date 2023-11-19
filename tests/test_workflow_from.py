@@ -1,11 +1,11 @@
 import shutil
 from unittest import TestCase
 
-from theflow.base import Compose
+from theflow.base import Function
 from theflow.storage import storage
 
 
-class IncrementBy(Compose):
+class IncrementBy(Function):
     x: int
 
     class Config:
@@ -16,10 +16,10 @@ class IncrementBy(Compose):
         return self.x + y
 
 
-class SequentialPipeline(Compose):
-    step1: Compose
-    step2: Compose
-    step3: Compose
+class SequentialPipeline(Function):
+    step1: Function
+    step2: Function
+    step3: Function
 
     class Config:
         store_result = ".test_temporary"

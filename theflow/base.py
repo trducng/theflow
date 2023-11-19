@@ -34,14 +34,14 @@ logger = logging.getLogger(__name__)
 
 
 def is_node_type(annotation) -> bool:
-    """Return True if the annotation contains Compose"""
+    """Return True if the annotation contains Function"""
     if is_union_type(annotation):
         return any(is_node_type(a) for a in annotation.__args__)
     if isinstance(annotation, ForwardRef):
         annotation = annotation._evaluate(globals(), locals(), frozenset())
         return is_node_type(annotation)
     if isinstance(annotation, type):
-        return issubclass(annotation, Compose) or issubclass(annotation, NodeAttr)
+        return issubclass(annotation, Function) or issubclass(annotation, NodeAttr)
     if isinstance(annotation, _GenericAlias):
         if issubclass(annotation.__origin__, NodeAttr):
             return True
@@ -61,7 +61,7 @@ unset = unset_()
 
 _Attr = TypeVar("_Attr")
 _PAttr = TypeVar("_PAttr")
-_NAttr = TypeVar("_NAttr", bound="Compose")
+_NAttr = TypeVar("_NAttr", bound="Function")
 
 
 class Attr(Generic[_Attr]):
@@ -70,9 +70,9 @@ class Attr(Generic[_Attr]):
     Args:
         default: default value of the parameter
         default_callback: callback function to generate default attribute value. This
-            callback takes in the Compose object and output the default value.
+            callback takes in the Function object and output the default value.
         auto_callback: callback function to generate attribute value. This
-            callback takes in the Compose object and output the default value.
+            callback takes in the Function object and output the default value.
         cache: if True, the value of the parameter will not be cached and will be
             recalculated everytime it is accessed (requires `auto_callback`)
         depends_on: if set, the value of the parameter will be calculated from the
@@ -120,23 +120,23 @@ class Attr(Generic[_Attr]):
         return str(self)
 
     @overload
-    def __get__(self, obj: None, _: type[Compose] | None) -> Attr:
+    def __get__(self, obj: None, _: type[Function] | None) -> Attr:
         ...
 
     @overload
-    def __get__(self, obj: Compose, _: type[Compose] | None) -> _Attr:
+    def __get__(self, obj: Function, _: type[Function] | None) -> _Attr:
         ...
 
     def __get__(
-        self, obj: Compose | None, _: type[Compose] | None = None
+        self, obj: Function | None, _: type[Function] | None = None
     ) -> _Attr | Attr:
         """Get the value of the parameter"""
         if obj is None:
             return self
 
-        if not isinstance(obj, Compose):
+        if not isinstance(obj, Function):
             raise ValueError(
-                f"`{self.__class__.__name__}` can only be used with Compose: "
+                f"`{self.__class__.__name__}` can only be used with Function: "
                 f"{self._qual_name}"
             )
 
@@ -160,14 +160,14 @@ class Attr(Generic[_Attr]):
         obj._attrx[self._attrx][self._name] = value
         return value
 
-    def __set__(self, obj: Compose, value: Any):
+    def __set__(self, obj: Function, value: Any):
         if self._auto_callback != unset:
             raise ValueError(
                 f"Cannot set value for auto-calculated {self._attrx}: {self._qual_name}"
             )
         obj._attrx[self._attrx][self._name] = value
 
-    def __delete__(self, obj: Compose):
+    def __delete__(self, obj: Function):
         if self._auto_callback != unset:
             raise ValueError(
                 f"Cannot delete value for auto-calculated parameter: {self._qual_name}"
@@ -200,11 +200,11 @@ class Attr(Generic[_Attr]):
 
         return export
 
-    def _auto_calculate_param(self, obj: Compose) -> _Attr:
+    def _auto_calculate_param(self, obj: Function) -> _Attr:
         """Calculate the value of the auto-parameter
 
         Args:
-            obj: the Compose object
+            obj: the Function object
 
         Returns:
             the value of the parameter
@@ -348,14 +348,14 @@ class Attr(Generic[_Attr]):
 
 
 class ParamAttr(Attr[_PAttr]):
-    """Control the behavior of a parameter in a Compose
+    """Control the behavior of a parameter in a Function
 
     Args:
         default: default value of the parameter
         default_callback: callback function to generate default attribute value. This
-            callback takes in the Compose object and output the default value.
+            callback takes in the Function object and output the default value.
         auto_callback: callback function to generate attribute value. This
-            callback takes in the Compose object and output the default value.
+            callback takes in the Function object and output the default value.
         cache: if True, the value of the parameter will not be cached and will be
             recalculated everytime it is accessed (requires `auto_callback`)
         depends_on: if set, the value of the parameter will be calculated from the
@@ -393,7 +393,7 @@ class ParamAttr(Attr[_PAttr]):
         self._strict_type = strict_type
         self._type = None
 
-    def __set__(self, obj: Compose, value: Any):
+    def __set__(self, obj: Function, value: Any):
         if self._strict_type:
             if not isinstance(value, obj.__dict__["__annotations__"][self._name]):
                 # TODO: more sophisicated type checking (e.g. handle Union, Optional...)
@@ -406,7 +406,7 @@ class ParamAttr(Attr[_PAttr]):
         if self._refresh_on_set:
             obj._initialize()
 
-    def __delete__(self, obj: Compose):
+    def __delete__(self, obj: Function):
         super().__delete__(obj)
         if self._refresh_on_set:
             obj._initialize()
@@ -477,14 +477,14 @@ class ParamAttr(Attr[_PAttr]):
 
 
 class NodeAttr(Attr[_NAttr]):
-    """Control the behavior of a node in a Compose
+    """Control the behavior of a node in a Function
 
     Args:
         default: default value of the parameter
         default_callback: callback function to generate default attribute value. This
-            callback takes in the Compose object and output the default value.
+            callback takes in the Function object and output the default value.
         auto_callback: callback function to generate attribute value. This
-            callback takes in the Compose object and output the default value.
+            callback takes in the Function object and output the default value.
         cache: if True, the value of the parameter will not be cached and will be
             recalculated everytime it is accessed (requires `auto_callback`)
         depends_on: if set, the value of the parameter will be calculated from the
@@ -507,7 +507,7 @@ class NodeAttr(Attr[_NAttr]):
         output: Any = unset,
         **extras,
     ):
-        if inspect.isclass(default) and issubclass(default, Compose):
+        if inspect.isclass(default) and issubclass(default, Function):
             default = cast(ObjectInitDeclaration, ObjectInitDeclaration(default))
         super().__init__(
             default=default,
@@ -529,20 +529,20 @@ class NodeAttr(Attr[_NAttr]):
             self._output = output_signature(default.run)  # type: ignore
 
     @overload
-    def __get__(self, obj: None, _: type[Compose] | None) -> NodeAttr:
+    def __get__(self, obj: None, _: type[Function] | None) -> NodeAttr:
         ...
 
     @overload
-    def __get__(self, obj: Compose, _: type[Compose] | None) -> _NAttr:
+    def __get__(self, obj: Function, _: type[Function] | None) -> _NAttr:
         ...
 
-    def __get__(self, obj: Compose | None, _: type[Compose] | None = None):
+    def __get__(self, obj: Function | None, _: type[Function] | None = None):
         value = super().__get__(obj, _)
         if obj:
             value = cast(_NAttr, value)
             obj._prepare_child(value, self._name)
-            if not isinstance(value, Compose):
-                raise ValueError(f"Node {obj.__class__}.{self._name} is not a Compose")
+            if not isinstance(value, Function):
+                raise ValueError(f"Node {obj.__class__}.{self._name} is not a Function")
             return value
         return value
 
@@ -757,7 +757,7 @@ Node = _NodeWrapper()
 Param = _ParamWrapper()
 
 
-class MetaCompose(ABCMeta):
+class MetaFunction(ABCMeta):
     def __new__(cls, clsname, bases, attrs):
         # Make sure all nodes and params have the Node and Param descriptor
         for name, value in attrs.get("__annotations__", {}).items():
@@ -775,7 +775,7 @@ class MetaCompose(ABCMeta):
             attrs[name] = desc
 
         try:
-            obj: type[Compose] = super().__new__(
+            obj: type[Function] = super().__new__(
                 cls, clsname, bases, attrs  # type: ignore
             )
         except Exception as e:
@@ -804,10 +804,10 @@ class MetaCompose(ABCMeta):
     kw_only_default=True,
     field_specifiers=(Param, Node),  # type: ignore
 )
-class Compose(metaclass=MetaCompose):
+class Function(metaclass=MetaFunction):
     """Base class that handle basic logic of a composable component
 
-    Everything is a composable component. Subclass `Compose` to define and run your
+    Everything is a composable component. Subclass `Function` to define and run your
     own flow or component.
 
     This class:
@@ -825,7 +825,7 @@ class Compose(metaclass=MetaCompose):
             setattr)
 
     Parameters and nodes have to be declared so that the information about the
-    Compose is explicit.
+    Function is explicit.
     """
 
     Config = DefaultConfig
@@ -982,7 +982,7 @@ class Compose(metaclass=MetaCompose):
         if not self._ff_prefix:  # only root node has prefix as empty
             # administrative setup
             self._ff_run_id = self.config.run_id
-            self._ff_flow_name = self.config.compose_name
+            self._ff_flow_name = self.config.function_name
             self.context.create_context(context=self.flow_qualidx())
             self.context.set("run_id", self._ff_run_id, context=self.flow_qualidx())
 
@@ -1022,7 +1022,7 @@ class Compose(metaclass=MetaCompose):
     def _set_context(self, context: Context) -> None:
         self._ff_context = context
         for node in self._ff_nodes:
-            if isinstance(getattr(self, node), Compose):
+            if isinstance(getattr(self, node), Function):
                 getattr(self, node).context = context
 
     def _del_context(self) -> None:
@@ -1049,7 +1049,7 @@ class Compose(metaclass=MetaCompose):
             return super().__setattr__(name, value)
 
         if name in self._ff_nodes:
-            if not isinstance(value, Compose):
+            if not isinstance(value, Function):
                 value = self._make_composable(value)
 
         return super().__setattr__(name, value)
@@ -1069,7 +1069,7 @@ class Compose(metaclass=MetaCompose):
 
     @classmethod
     def _collect_registered_params_and_nodes(cls) -> tuple[list[str], list[str]]:
-        """Return the list of all params and nodes registered in the Compose
+        """Return the list of all params and nodes registered in the Function
 
         Returns:
             tuple[list[str], list[str]]: params, nodes
@@ -1099,10 +1099,10 @@ class Compose(metaclass=MetaCompose):
                 keywords[keyword] = each_cls
         return keywords
 
-    def _make_composable(self, value) -> Compose:
-        return ComposeProxy(ff_original_obj=value)
+    def _make_composable(self, value) -> Function:
+        return ProxyFunction(ff_original_obj=value)
 
-    def _prepare_child(self, child: Compose, name: str):
+    def _prepare_child(self, child: Function, name: str):
         if self._ff_in_run:
             child._ff_prefix = self.abs_pathx()
             child._ff_name = (
@@ -1131,7 +1131,7 @@ class Compose(metaclass=MetaCompose):
             kwargs: the keywords and params to be set as default
 
         Returns:
-            A new Compose with the supplied keywords and params set as default
+            A new Function with the supplied keywords and params set as default
         """
         return ObjectInitDeclaration(cls, **kwargs)
 
@@ -1200,7 +1200,7 @@ class Compose(metaclass=MetaCompose):
                 value = attr_value.__persist_flow__()
                 if isinstance(
                     attr_value._default, ObjectInitDeclaration
-                ) and issubclass(attr_value._default.cls, Compose):
+                ) and issubclass(attr_value._default.cls, Function):
                     value["default"] = attr_value._default.cls.describe()  # type:ignore
                     value["default_kwargs"] = {
                         key: value
@@ -1226,7 +1226,7 @@ class Compose(metaclass=MetaCompose):
         nodes: dict = {}
         for node in self._ff_nodes:
             try:
-                node_obj: Compose = getattr(self, node)
+                node_obj: Function = getattr(self, node)
                 if self.specs(node).get("depends_on", []) and ignore_depends:
                     continue
                 nodes[node] = node_obj.dump(ignore_depends=ignore_depends)
@@ -1271,7 +1271,7 @@ class Compose(metaclass=MetaCompose):
         return definition.to_dict()
 
     def getx(self, path: str) -> Any:
-        """Get the Compose node or param based on path"""
+        """Get the Function node or param based on path"""
         path = path.strip(".")
         if "." in path:
             module, subpath = path.split(".", 1)
@@ -1334,9 +1334,9 @@ class Compose(metaclass=MetaCompose):
         """
         specs = self.specs(path)
         func = obj
-        if isinstance(obj, Compose):
+        if isinstance(obj, Function):
             func = obj.run
-        elif isinstance(obj, type) and issubclass(obj, Compose):
+        elif isinstance(obj, type) and issubclass(obj, Function):
             func = obj.run
 
         if specs["__type__"] == "theflow.base.ParamAttr":
@@ -1401,7 +1401,7 @@ class Compose(metaclass=MetaCompose):
         return export
 
 
-class SessionCompose(Compose):
+class SessionFunction(Function):
     """Handle sesssion"""
 
     def start_session(self):
@@ -1411,7 +1411,7 @@ class SessionCompose(Compose):
         if not self._ff_prefix:  # only root node has prefix as empty
             # administrative setup
             self._ff_run_id = self.config.run_id
-            self._ff_flow_name: str = self.config.compose_name
+            self._ff_flow_name: str = self.config.function_name
             self.context.create_context(context=self.flow_qualidx())
             self.context.set("run_id", self._ff_run_id, context=self.flow_qualidx())
 
@@ -1442,14 +1442,14 @@ class SessionCompose(Compose):
         self._variablex()
 
 
-class ComposeProxy(Compose):
+class ProxyFunction(Function):
     """Wrap an object to be a step.
 
-    `ComposeProxy` demonstrates the same behavior as `Step`. The only difference is
-    that `ComposeProxy` doesn't know how the object will be called (e.g. `__call__`
+    `ProxyFunction` demonstrates the same behavior as `Step`. The only difference is
+    that `ProxyFunction` doesn't know how the object will be called (e.g. `__call__`
     or any methods) so it lazily exposes the methods when called.
 
-    Cannot use this class directly because Compose reserves some common _keywords
+    Cannot use this class directly because Function reserves some common _keywords
     that can conflict with original object.
 
     Raise ValueError in case of conflict.
@@ -1459,9 +1459,9 @@ class ComposeProxy(Compose):
 
     def __init__(self, **params):
         super().__init__(**params)
-        if isinstance(self.ff_original_obj, ComposeProxy):
+        if isinstance(self.ff_original_obj, ProxyFunction):
             raise ValueError(
-                "Unnecessary to wrap a ComposeProxy object with ComposeProxy"
+                "Unnecessary to wrap a ProxyFunction object with ProxyFunction"
             )
 
     def _create_callable(self, callable_obj):

@@ -1,18 +1,18 @@
-from theflow import Compose, Node, Param, unset
+from theflow import Function, Node, Param, unset
 
 
 def callback(obj):
     return obj.a * 2
 
 
-class Multiply(Compose):
+class Multiply(Function):
     a: int
 
     def run(self, x) -> int:
         return self.a * x
 
 
-class Sum1(Compose):
+class Sum1(Function):
     a: int = Param(unset)
     b: int = 10
     c: int = 10
@@ -24,15 +24,15 @@ class Sum1(Compose):
         return self.a + self.b + self.c
 
 
-class Sum2(Compose):
+class Sum2(Function):
     a: int
-    mult: Compose = Multiply.withx(a=10)
+    mult: Function = Multiply.withx(a=10)
 
     def run(self, a, b: int, *args, **kwargs) -> int:
         return self.a + a + self.mult(b)
 
 
-class Func(Compose):
+class Func(Function):
     """Function calculation"""
 
     class Config:
@@ -41,8 +41,8 @@ class Func(Compose):
     a: int = Param(default=100, help="The `a` number")
     e: int = Param(default=unset, help="The `e` number")
     x: Sum1
-    y: Compose = Node(default=Sum1.withx(a=100), help="The `y` node")
-    m: Compose = Node(default=Sum2.withx(a=100))
+    y: Function = Node(default=Sum1.withx(a=100), help="The `y` node")
+    m: Function = Node(default=Sum2.withx(a=100))
 
     @Param.auto()
     def f(self):

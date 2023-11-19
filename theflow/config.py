@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any, Optional, Type, Union
 import yaml
 
 if TYPE_CHECKING:
-    from .base import Compose
+    from .base import Function
 
 from .utils.modules import import_dotted_string
 
@@ -14,7 +14,7 @@ class DefaultConfig:
     # don't store the result if None
     store_result = "{{ theflow.callbacks.store_result__pipeline_name }}"
     run_id = "{{ theflow.callbacks.run_id__timestamp }}"
-    compose_name = "{{ theflow.callbacks.compose_name__class_name }}"
+    function_name = "{{ theflow.callbacks.function_name__class_name }}"
 
     # middleware
     middleware_section = "default"
@@ -28,7 +28,7 @@ class DefaultConfig:
 class ConfigGet:
     """A wrapper class for config retrieval"""
 
-    def __init__(self, config: "Config", pipeline: "Compose"):
+    def __init__(self, config: "Config", pipeline: "Function"):
         self._config = config
         self._pipeline = pipeline
 
@@ -46,7 +46,7 @@ class ConfigGet:
 class ConfigProperty:
     """Serve as property to access the config from the pipeline instance"""
 
-    def __get__(self, obj: Optional["Compose"], obj_type: Type["Compose"]) -> Any:
+    def __get__(self, obj: Optional["Function"], obj_type: Type["Function"]) -> Any:
         if obj is None:
             return self
 
@@ -54,7 +54,7 @@ class ConfigProperty:
             raise ValueError("ConfigProperty can only be accessed after initialization")
         return ConfigGet(obj._ff_config, obj)
 
-    def __set__(self, obj: "Compose", value: Union[dict, "Config", None]) -> None:
+    def __set__(self, obj: "Function", value: Union[dict, "Config", None]) -> None:
         if not isinstance(value, Config):
             raise ValueError("ConfigProperty can only be set with Config object")
 
@@ -92,14 +92,14 @@ class Config:
 
         store_result: "Path"
         run_id: str
-        compose_name: str
+        function_name: str
         middleware_section: str
         middleware_switches: dict[str, bool]
 
     def __init__(
         self,
         config: Optional[Union[dict, str]] = None,
-        cls: Optional[Type["Compose"]] = None,
+        cls: Optional[Type["Function"]] = None,
     ):
         self._available_configs = {
             key for key in DefaultConfig.__dict__.keys() if not key.startswith("_")
@@ -140,7 +140,7 @@ class Config:
 
             setattr(self, key, value)
 
-    def update_from_pipeline(self, cls: Type["Compose"]) -> None:
+    def update_from_pipeline(self, cls: Type["Function"]) -> None:
         """Parse the pipeline configs from pipeline.Config"""
         classes = cls.mro()
         for each_cls in reversed(classes):
@@ -152,11 +152,11 @@ class Config:
         self.update_from_dict(config.dump())
 
     def update(self, val: Any) -> None:
-        from .base import Compose
+        from .base import Function
 
         if isinstance(val, dict):
             self.update_from_dict(val)
-        elif isinstance(val, type) and issubclass(val, Compose):
+        elif isinstance(val, type) and issubclass(val, Function):
             self.update_from_pipeline(val)
         elif isinstance(val, Config):
             self.update_from_config(val)

@@ -1,5 +1,5 @@
 ---
-title: "Compose"
+title: "Function"
 highlight-style: github
 code-annotations: select
 ---
@@ -13,7 +13,7 @@ Node and params are Function attributes.
 They can be declared implicitly through type annotation, or can be declared
 explicitly by using `Node` and `Param`.
 
-You can implicitly declare node by annotating the attributes with `Compose` type
+You can implicitly declare node by annotating the attributes with `Function` type
 or any of its subclass. Attributes with other types will be treated as params.
 
 You can explicitly declare node and param by assigning it to `Node()` and
@@ -22,12 +22,12 @@ You can explicitly declare node and param by assigning it to `Node()` and
 Node and param names cannot start with underscore `_`.
 
 ```python
-from compose import Compose
+from theflow import Function
 
-class Pipeline(x: Compose):
+class Pipeline(x: Function):
 
     # x is implicitly declared as node
-    x: Compose
+    x: Function
 
     # y is explicitly declared as node
     y = Node()
@@ -47,15 +47,15 @@ argument. If a node or param is accessed without being set, the value in
 default value. Only one of `default` and `default_callback` can be set.
 
 Note that `default` and `default_callback` are lazily evaluated only when the
-attribute is accessed, not when the Compose object is initiated.
+attribute is accessed, not when the Function object is initiated.
 
 **With `default`**
 
 When assinging a Node `default`, one can supply:
 
-- A `Compose` object or any of its subclass. This object will be called `()` to
+- A `Function` object or any of its subclass. This object will be called `()` to
   initiate real instance once the node is accessed.
-- If ones want the compose object (let's say named `ComponentA`) to be initiated
+- If ones want the function object (let's say named `ComponentA`) to be initiated
   with specific set of arguments, one can declare with `withx`:
   `Node(default=ComponentA.withx(arg1=val1, arg2=val2))` and the component will
   be initiated with `ComponentA(arg1=val1, arg2=val2)`.
@@ -65,19 +65,19 @@ default object to be init with specific arguments, one can use
 `theflow.utils.modules.objectInitDeclaration`.
 
 ```python
-from theflow import Compose, Node, Param
+from theflow import Function, Node, Param
 from theflow.utils.modules import ObjectInitDeclaration
 
-class Pipeline(x: Compose):
+class Pipeline(x: Function):
 
     # default value of x1 is Pipeline2()
-    x1: Compose = Pipeline2
+    x1: Function = Pipeline2
 
     # have the same effect as x1
     x2 = Node(default=Pipeline2)
 
     # default value of y1 is Pipeline2(param1=1, param2=2)
-    y1: Compose = Pipeline2.withx(param1=1, param2=2)
+    y1: Function = Pipeline2.withx(param1=1, param2=2)
 
     # have the same effect as y1
     y2 = Node(default=Pipeline2.withx(param1=1, param2=2))
@@ -105,7 +105,7 @@ class Pipeline(x: Compose):
 **With `default_callback`**
 
 The `default_callback` takes in a function with signature `func(obj) -> val`
-where `obj` will be supplied with parent Compose object, and `val` will be the
+where `obj` will be supplied with parent Function object, and `val` will be the
 default node or param value.
 
 To make declaration clean, `theflow` provides a `@Param.default` and
@@ -114,9 +114,9 @@ node/param of the same name.
 
 
 ```python
-from theflow import Compose, Node, Param
+from theflow import Function, Node, Param
 
-class Pipeline(Compose):
+class Pipeline(Function):
 
     # default value of node x1 is Pipeline2()
     x1 = Node(default_callback=lambda obj: Pipeline2())
@@ -140,7 +140,7 @@ class Pipeline(Compose):
 ### Declare node and param that depends on other nodes and params
 
 These nodes and params cannot be set explicitly. Instead, they depend on other
-values in a Compose object. One supply an `auto_callback` function in the
+values in a Function object. One supply an `auto_callback` function in the
 `Node()` and `Param()` descriptors to make a node/param into an auto version.
 This function will be called when the node or param is accessed to calculate its
 value.
@@ -157,7 +157,7 @@ When using `@Node/Param.auto()` and `auto_callback`, one can set `cache` and
 `depends_on` parameters to control the caching behavior.
 
 With `cache=True`, the auto callback function will be executed if any of the
-nodes and params in the Compose changes. This value is set to True by default
+nodes and params in the Function changes. This value is set to True by default
 with `@Node/Param.auto()`, and to False by default with `Node/Param()`.
 
 With `depends_on=["name1", "name2"]`, the auto callback function will be
@@ -166,9 +166,9 @@ executed if any of the mentioned nodes and params changes. This option requires
 cache is enabled.
 
 ```python
-from theflow import Compose, Node, Param
+from theflow import Function, Node, Param
 
-class Pipeline(Compose):
+class Pipeline(Function):
 
     x1 = Node(default_callback=lambda obj: Pipeline2())
 
@@ -224,7 +224,7 @@ method will return a dictionary:
 
 ### Get specification about a param or a node
 
-One can get the Node or Param definition of a Compose object with `.spec(path:
+One can get the Node or Param definition of a Function object with `.spec(path:
 str)`. It can also access definition within nested nodes. Just use `.`-delimited
 path.
 
@@ -239,44 +239,44 @@ Depending on how much you want to customize, there are 3 ways:
   `Param`, and they can be accessed with `._extras` as a dictionary. The
   `Node.to_dict()` and `Param.to_dict()` will also include the extra data.
 - Pre-defined behavior changes: the default `Node` and `Param` can access
-  certain pre-defined callbacks from the parent Compose.
+  certain pre-defined callbacks from the parent Function
 - Arbitrary behavior changes: subclass `Node` and `Param`, and override
   methods as needed. The `Node.to_dict()` and `Param.to_dict()` will also show
   the extra data.
 
 #### Callback way
 
-- `_prepare_child(self, child: "Compose", name: str)` is called when a child
+- `_prepare_child(self, child: "Function", name: str)` is called when a child
   node is being accessed. The `child` corresponds to the node object, and `name`
-  corresponds to the node name in the parent compose.
+  corresponds to the node name in the parent function.
 
 #### Subclass way
 
-After subclassing Node and Param, you can directly use them in your Compose
+After subclassing Node and Param, you can directly use them in your Function
 definition. Also, you can add them in project-wide settings: `NODE_CLASS` and
 `PARAM_CLASS` respectively, and they will take effect as default node and param
 definition.
 
 
-## Compose internals
+## Function internals
 
 ### Declare and list protected keywords
 
 Some names are not allowed as node or param names, because they might conflict
-with important attributes and methods of Compose, like `config`, `set`...
+with important attributes and methods of Function, like `config`, `set`...
 
-When you create your own Compose, if you want to avoid any naming conflict with
+When you create your own Function, if you want to avoid any naming conflict with
 the subclass, you can reserve the names in `_keywords`. This will raise error
 when future subclasses use one or more of those keywords as node and param
 names.
 
-You can list a Compose's keywords with `cls._protected_keywords()`. This will
+You can list a Function's keywords with `cls._protected_keywords()`. This will
 return a dictionary of {keyword-name: class-that-defines-that-keyword}. It will
 traverse mro and look for `_keywords`, so don't worry about the child class
 `_keywords` replacing parent class `_keywords`.
 
 ```python
-class A(Compose):
+class A(Function):
     _keywords = ["x", "y"]
 
 class B(A):

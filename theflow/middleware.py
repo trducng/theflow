@@ -3,7 +3,7 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
-    from .base import Compose
+    from .base import Function
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class Middleware:
     """Middleware template to work on the input and output of a node"""
 
-    def __init__(self, obj: "Compose", next_call: Callable):
+    def __init__(self, obj: "Function", next_call: Callable):
         if obj is None:
             raise ValueError("obj must be specified")
         self.obj = obj
@@ -144,8 +144,8 @@ class TrackProgressMiddleware(Middleware):
 
 
 class CachingMiddleware(Middleware):
-    """Cache the output of a compose and reuse that output if the input and compose
-    definition is the same
+    """Cache the output of a function and reuse that output if the input and
+    function definition is the same
     """
 
     def __init__(self, *args, **kwargs):
@@ -170,12 +170,12 @@ class CachingMiddleware(Middleware):
         return output
 
     def create_key(self, *args, **kwargs) -> str:
-        """Create a key based on the input and Compose's definition
+        """Create a key based on the input and Function's definition
 
         Specifically, it depends on:
             - the `run`'s input
-            - the Compose's class name
-            - the Compose's dump
+            - the Function's class name
+            - the Function's dump
 
         Args:
             *args: positional arguments of the run

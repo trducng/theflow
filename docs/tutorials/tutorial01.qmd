@@ -1,5 +1,5 @@
 ---
-title: "Part 1: Define Compose"
+title: "Part 1: Define Function"
 highlight-style: github
 code-annotations: select
 ---
@@ -22,10 +22,10 @@ Please install `llama-cpp-python`: `pip install llama-cpp-python` and download
 the llama-2 7b instruct model weight (llama-2-7b-chat.Q4_K_M.gguf)
 [here](https://huggingface.co/TheBloke/Llama-2-7b-Chat-GGUF/blob/main/llama-2-7b-chat.Q4_K_M.gguf).
 
-## Define a Compose to get text from Wikipedia
+## Define a Function to get text from Wikipedia
 
-A Compose is simply an operation that takes in input and returns an output.
-Let's write the first Compose to retrieve the text from Wikipedia. It has an
+A Function is simply an operation that takes in input and returns an output.
+Let's write the first Function to retrieve the text from Wikipedia. It has an
 option to retrieve full HTML text from `/page/html/{title}` or short
 summary from `/page/summary/{title}`.
 
@@ -33,10 +33,10 @@ summary from `/page/summary/{title}`.
 import json
 import urllib.parse as parse
 import urllib.request as request
-from theflow import Compose
+from theflow import Function
 
 
-class RetrieveArticle(Compose): # <1>
+class RetrieveArticle(Function): # <1>
     """Retrieve the text content from an wikipedia article"""
 
     full_text: bool   # <2>
@@ -58,13 +58,13 @@ class RetrieveArticle(Compose): # <1>
 
         return text    # <3>
 ```
-1. Subclass `theflow.Compose` to create a flow.
+1. Subclass `theflow.Function` to create a flow.
 2. Declare the init parameters with an explicit type annotation. `theflow` will
-   automatically treat any parameters with type other than `theflow.Compose` as
+   automatically treat any parameters with type other than `theflow.Function` as
    init parameters.
 3. Declare the flow logic in `run`, with input and output type annotations. The
    input and output annotations are optional, but higly recommended to check if
-   a Compose is compatible with another Compose.
+   a Function is compatible with another Function
 
 In this declaration, `full_text` is an *init parameter* that can be set when
 initializing the flow. The flow logic is written in the `run` method that takes
@@ -126,14 +126,14 @@ that can make question answering difficult.
 
 We will define some parameters and logic to clean the full HTML. For
 demonstration, let's use simple regex to clean the text and remove the tags.
-The relevant parameters will be added to the `RetrieveArticle` Compose above.
+The relevant parameters will be added to the `RetrieveArticle` Function above.
 
 ```python
 import re
 from theflow import Param
 
 
-class RetrieveArticle(Compose):
+class RetrieveArticle(Function):
     """Retrieve the text content from an wikipedia article"""
 
     full_text: bool
@@ -175,7 +175,7 @@ auto-parameter `remove_tag_obj`  whose value will be calculated in the
 whenever `remove_tag_pattern` changes. Otherwise, we will access its value from
 cache.
 
-Then, we can rerun this Compose to get the cleaner full text:
+Then, we can rerun this Function to get the cleaner full text:
 
 ```python
 retrieve = RetrieveArticle(full_text=True)
@@ -192,15 +192,15 @@ print(full_text[:1000])
 
 The text is not entirely perfect, but it's much more operable now.
 
-## Create a composite Compose
+## Create a composite Function
 
 From the previous section, we can retrieve Wikipedia article. However, to
 retrieve the article, we must know the correct Wikipedia title. To get the
-correct title, let's create a search Compose that can return relevant articles
+correct title, let's create a search Function that can return relevant articles
 given a search query.
 
 ```python
-class WikipediaSearch(Compose):
+class WikipediaSearch(Function):
     """Search for articles from wikipedia"""
 
     def run(self, title: str, limit: int = 10) -> dict:
@@ -267,7 +267,7 @@ search("Einstein", limit=2)
 </details>
 
 From then on, getting information about a concept is simply about using both the
-`RetrieveArticle` and `WikipediaSearch` Compose.
+`RetrieveArticle` and `WikipediaSearch` Function
 
 ```python
 retrieve = RetrieveArticle(full_text=False)
@@ -301,9 +301,9 @@ pipeline and they can easily be used together.
 from theflow import Node
 
 
-class LearnFromWikipedia(Compose):
-    search: Compose   # <1>
-    retrieve: Node[Compose] = Node(                         # <2>
+class LearnFromWikipedia(Function):
+    search: Function   # <1>
+    retrieve: Function = Node(                         # <2>
         default=RetrieveArticle.withx(full_text=False),
     )                                                       # <2>
 
@@ -317,22 +317,22 @@ class LearnFromWikipedia(Compose):
         return ". ".join(texts)
 ```
 
-1. Declare a search node by annotating it with `Compose` type.
+1. Declare a search node by annotating it with `Function` type.
 2. Declare a retrieve node and set to use `RetrieveArticle` by default with the
    `full_text` param set to False.
 3. Access and execute search node with `self.search`.
 4. Access and execute retrieve node with `self.retrieve`.
 
-A node is defined by annotating it with `Compose` type or any of its sub-types.
+A node is defined by annotating it with `Function` type or any of its sub-types.
 It can be declared by explicitly using the `Node(...)` construct. Explicitly
 using the Node construct allows for finer-grained declaration. In example above,
-it allows us to supply the default Compose and its parameters. Note, for node,
+it allows us to supply the default Function and its parameters. Note, for node,
 we don't want to set default by declaring:
 
 ```python
-class LearnFromWikipedia(Compose):
+class LearnFromWikipedia(Function):
     ...
-    retrieve: Node[Compose] = RetrieveArticle(full_text=False)
+    retrieve: Function = RetrieveArticle(full_text=False)
     ...
 ```
 
@@ -399,7 +399,7 @@ respective step:
 
 - `.`: This corresponds to the logged info of the main flow.
 - `.search`: This corresponds to the logged info of the search node, which
-  defined by the `search: Compose` node in the flow.
+  defined by the `search: Function` node in the flow.
 - `.retrieve` and `.retrieve[1]`: These corresponds to the logged info of the
   retrieve node. Since the retrieve node is run in a `for loop` for 2 times,
   we have `.retrieve` to log info in the 1st iteration and `.retrieve[1]` to

@@ -1,11 +1,11 @@
 from unittest import TestCase
 
-from theflow import Compose, Node, Param, load
+from theflow import Function, Node, Param, load
 
 from .assets.sample_flow import Func, Multiply, Sum1, Sum2, callback
 
 
-class TestComposeSaveAndLoad(TestCase):
+class TestFunctionSaveAndLoad(TestCase):
     def test_save_ignore_depend_as_default(self):
         """By default, ignore_depends for the output"""
         obj = Func(a=20, e=20, x=Sum1(a=20))
@@ -150,10 +150,10 @@ class TestComposeSaveAndLoad(TestCase):
         )
 
 
-class ExtraNodeParam(Compose):
+class ExtraNodeParam(Function):
     param_a: str = Param(help="Param A", data1=1, data2="2")
-    node_a: Compose = Node(help="Node A", data1=1, data2="2")
-    node_b: Compose = Node(default_callback=lambda _: Compose(), data3={"sample": 1})
+    node_a: Function = Node(help="Node A", data1=1, data2="2")
+    node_b: Function = Node(default_callback=lambda _: Function(), data3={"sample": 1})
 
     @Param.auto(data3={"sample": 1}, depends_on=["node_a"])
     def param_b(self):

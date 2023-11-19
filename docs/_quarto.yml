@@ -8,7 +8,7 @@ website:
       - text: "Tutorials"
         file: tutorials/tutorial01.qmd
       - text: "Topics"
-        file: topics/compose.qmd
+        file: topics/function.qmd
     tools:
       - icon: github
         href: https://github.com/trducng/theflow
@@ -31,7 +31,7 @@ website:
       contents:
         - section: "Logic layer"
           contents:
-            - topics/compose.qmd
+            - topics/function.qmd
             - topics/config.qmd
             - topics/middleware.qmd
         - section: "Storage layer"

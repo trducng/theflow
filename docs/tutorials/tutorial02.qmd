@@ -8,7 +8,7 @@ In the previous tutorial, we have created a simple flow to retrieve information
 from Wikipedia. In this tutorial, we will perform question and answering on the
 text.
 
-## Define a Compose to do question and answering
+## Define a Function to do question and answering
 
 We will use `llama-cpp-python` with the Llama 2 Chat 7B model to do question
 answering. Make sure that you have installed `pip install llama-cpp-python` and
@@ -55,9 +55,9 @@ to ask Wikipedia, retrieve info from Wikipedia, and then synthesize a final
 answer.
 
 ```python
-class AnswerWithWikipedia(Compose):
-    llm: Compose
-    get_info: Compose
+class AnswerWithWikipedia(Function):
+    llm: Function
+    get_info: Function
 
     def run(self, question: str) -> str:
 
@@ -117,7 +117,7 @@ possible to explicitly make use of `limit` by `self.get_info(keyword,
 limit=limit)`. What if later on we want to substitute WikipediaSearch with other
 search method that doesn't have the `limit` param? Furthermore, doing so
 requires `AnswerWithWikipedia.run` to include `limit` as 1 of its params as
-well. This results in a tight interface coupling between these 2 Composes. Plus,
+well. This results in a tight interface coupling between these 2 Functions Plus,
 if there are multiple candidates of `get_info`, each with their own set of run
 params, then we can imagine how unwieldy `AnwerWithWikipedia` will become.
 
@@ -159,7 +159,7 @@ received the Nobel Prize in Physics in 1921 for his services to`.
 ## Export and import flow
 
 As a flow becomes more complex, it can become harder to communicate that flow
-with other people. A flow with `Compose` can be exported into a config file. And
+with other people. A flow with `Function` can be exported into a config file. And
 other people or later on can be imported back to a flow object ready to use.
 
 ```python
@@ -191,7 +191,7 @@ nodes:
         params: {}
         nodes: {}
   llm:
-    type: theflow.base.ComposeProxy
+    type: theflow.base.ProxyFunction
     params: {}
     nodes: {}
 ```

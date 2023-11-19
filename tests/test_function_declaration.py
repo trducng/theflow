@@ -1,6 +1,6 @@
 import pytest
 
-from theflow import Compose, Node, Param
+from theflow import Function, Node, Param
 from theflow.utils.modules import ObjectInitDeclaration
 
 
@@ -10,27 +10,27 @@ class ComplexObj:
         self.y = y
 
 
-class FlowA(Compose):
+class FlowA(Function):
     x: int = -1
     param_a: int = -2
-    node_a: Compose
+    node_a: Function
 
     def run(self):
         return self.x + self.node_a()
 
 
-class FlowB(Compose):
+class FlowB(Function):
     x: int
     param_b: ComplexObj = Param(default=ObjectInitDeclaration(ComplexObj, x=20, y=30))
-    node_b: Compose = FlowA.withx(x=0)
+    node_b: Function = FlowA.withx(x=0)
 
     def run(self):
         return self.x + self.node_b()
 
 
-class FlowC1(Compose):
+class FlowC1(Function):
     x: int
-    node_c: Compose = Node(
+    node_c: Function = Node(
         default=FlowB.withx(
             x=9,
             param_b=FlowB.param_b._default.withx(x=2, y=3),
@@ -42,9 +42,9 @@ class FlowC1(Compose):
         return self.x + self.node_c()
 
 
-class FlowC2(Compose):
+class FlowC2(Function):
     x: int
-    node_c: Compose = Node(default=FlowB)
+    node_c: Function = Node(default=FlowB)
 
     def run(self):
         return self.x + self.node_c()
@@ -76,7 +76,7 @@ def test_default_node_param():
 
 
 class SubclassC2(FlowC2):
-    node_c: Compose = FlowA.withx(x=11)
+    node_c: Function = FlowA.withx(x=11)
 
 
 def test_subclass_flow():
@@ -92,7 +92,7 @@ def test_subclass_flow():
 
 
 class TestParamCallback:
-    class Flow(Compose):
+    class Flow(Function):
         x: int = 2
         y: int = Param(default_callback=lambda obj: obj.x * 2)
 
@@ -109,7 +109,7 @@ class TestParamCallback:
             self._z_call_counted += 1
             return self.y * 3
 
-    class FlowDepend(Compose):
+    class FlowDepend(Function):
         x: int = 2
         y: int = Param(default_callback=lambda obj: obj.x * 2)
 
@@ -126,7 +126,7 @@ class TestParamCallback:
             self._z_call_counted += 1
             return self.y * 3
 
-    class FlowNoCache(Compose):
+    class FlowNoCache(Function):
         x: int = 2
         y: int = Param(default_callback=lambda obj: obj.x * 2)
 

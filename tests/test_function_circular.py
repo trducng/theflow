@@ -1,19 +1,19 @@
 import pytest
 
-from theflow import Compose
+from theflow import Function
 
 
-class FlowA(Compose):
+class FlowA(Function):
     x: int
-    node_a: Compose
+    node_a: Function
 
     def run(self):
         return self.x + self.node_a()
 
 
-class FlowB(Compose):
+class FlowB(Function):
     x: int
-    node_b: Compose
+    node_b: Function
 
     def run(self):
         return self.x + self.node_b()

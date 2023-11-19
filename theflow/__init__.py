@@ -1,9 +1,9 @@
-from .base import Compose, Node, Param, SessionCompose, unset
+from .base import Function, Node, Param, SessionFunction, unset
 from .safe import load
 
 __all__ = [
-    "SessionCompose",
-    "Compose",
+    "SessionFunction",
+    "Function",
     "unset",
     "load",
     "Param",

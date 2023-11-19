@@ -4,11 +4,11 @@ from unittest import TestCase
 
 import pytest
 
-from theflow import Compose
+from theflow import Function
 from theflow.utils.documentation import (
-    get_compose_documentation,
-    get_compose_documentation_from_module,
-    get_composes_from_module,
+    get_function_documentation,
+    get_function_documentation_from_module,
+    get_functions_from_module,
 )
 from theflow.utils.hashes import naivehash
 from theflow.utils.modules import (
@@ -199,12 +199,12 @@ class TestSerialize(TestCase):
         """
         from pathlib import Path
 
-        from theflow.base import Compose
+        from theflow.base import Function
 
-        self.assertEqual(serialize([Compose, 6]), ["{{ theflow.base.Compose }}", 6])
+        self.assertEqual(serialize([Function, 6]), ["{{ theflow.base.Function }}", 6])
         self.assertEqual(
-            serialize([Compose, 6, [Path, "hello"]]),
-            ["{{ theflow.base.Compose }}", 6, ["{{ pathlib.Path }}", "hello"]],
+            serialize([Function, 6, [Path, "hello"]]),
+            ["{{ theflow.base.Function }}", 6, ["{{ pathlib.Path }}", "hello"]],
         )
 
     def test_serialize_composite_dict(self):
@@ -213,16 +213,16 @@ class TestSerialize(TestCase):
         """
         from pathlib import Path
 
-        from theflow.base import Compose
+        from theflow.base import Function
 
         self.assertEqual(
-            serialize({"a": Compose, "b": 6}),
-            {"a": "{{ theflow.base.Compose }}", "b": 6},
+            serialize({"a": Function, "b": 6}),
+            {"a": "{{ theflow.base.Function }}", "b": 6},
         )
         self.assertEqual(
-            serialize({"a": Compose, "b": 6, "c": {"hello": Path}}),
+            serialize({"a": Function, "b": 6, "c": {"hello": Path}}),
             {
-                "a": "{{ theflow.base.Compose }}",
+                "a": "{{ theflow.base.Function }}",
                 "b": 6,
                 "c": {"hello": "{{ pathlib.Path }}"},
             },
@@ -235,7 +235,7 @@ class TestSerialize(TestCase):
 
         self.assertEqual(serialize(Any), "{{ typing.Any }}")
         self.assertEqual(serialize(Union[str, int]), "{{ typing.Union[str, int] }}")
-        self.assertEqual(serialize(list[Compose]), "{{ list[theflow.base.Compose] }}")
+        self.assertEqual(serialize(list[Function]), "{{ list[theflow.base.Function] }}")
 
 
 class TestDeserialize(TestCase):
@@ -263,18 +263,18 @@ class TestDeserialize(TestCase):
         """Complex Python object within list"""
         from pathlib import Path
 
-        from theflow.base import Compose
+        from theflow.base import Function
 
         self.assertEqual(
-            deserialize(["{{ theflow.base.Compose }}", 6], safe=False),
-            [Compose, 6],
+            deserialize(["{{ theflow.base.Function }}", 6], safe=False),
+            [Function, 6],
         )
         self.assertEqual(
             deserialize(
-                ["{{ theflow.base.Compose }}", 6, ["{{ pathlib.Path }}", "hello"]],
+                ["{{ theflow.base.Function }}", 6, ["{{ pathlib.Path }}", "hello"]],
                 safe=False,
             ),
-            [Compose, 6, [Path, "hello"]],
+            [Function, 6, [Path, "hello"]],
         )
 
     def test_deserialize_composite_dict_unsafe(self):
@@ -283,22 +283,22 @@ class TestDeserialize(TestCase):
         """
         from pathlib import Path
 
-        from theflow.base import Compose
+        from theflow.base import Function
 
         self.assertEqual(
-            deserialize({"a": "{{ theflow.base.Compose }}", "b": 6}, safe=False),
-            {"a": Compose, "b": 6},
+            deserialize({"a": "{{ theflow.base.Function }}", "b": 6}, safe=False),
+            {"a": Function, "b": 6},
         )
         self.assertEqual(
             deserialize(
                 {
-                    "a": "{{ theflow.base.Compose }}",
+                    "a": "{{ theflow.base.Function }}",
                     "b": 6,
                     "c": {"hello": "{{ pathlib.Path }}"},
                 },
                 safe=False,
             ),
-            {"a": Compose, "b": 6, "c": {"hello": Path}},
+            {"a": Function, "b": 6, "c": {"hello": Path}},
         )
 
     @pytest.mark.skip(reason="TODO: not work yet")
@@ -308,17 +308,17 @@ class TestDeserialize(TestCase):
 
         self.assertEqual(serialize(Any), "{{ typing.Any }}")
         self.assertEqual(serialize(Union[str, int]), "{{ typing.Union[str, int] }}")
-        self.assertEqual(serialize(list[Compose]), "{{ list[theflow.base.Compose] }}")
+        self.assertEqual(serialize(list[Function]), "{{ list[theflow.base.Function] }}")
 
 
 class TestDocumentationUtility(TestCase):
-    def test_get_compose_documentation(self):
-        """Test get compose full information: docstring, ndoes, params"""
-        sum1_doc = get_compose_documentation(Sum1)
+    def test_get_function_documentation(self):
+        """Test get function full information: docstring, ndoes, params"""
+        sum1_doc = get_function_documentation(Sum1)
         assert sum1_doc["desc"] == ""
         assert sum1_doc["nodes"] == {}
 
-        plus_doc = get_compose_documentation(Func)
+        plus_doc = get_function_documentation(Func)
         assert plus_doc["desc"] == "Function calculation"
         assert plus_doc["params"]["a"]["desc"] == "The `a` number"
         assert plus_doc["params"]["a"]["default"] == 100
@@ -326,15 +326,15 @@ class TestDocumentationUtility(TestCase):
         assert plus_doc["nodes"]["y"]["desc"] == "The `y` node"
         assert plus_doc["nodes"]["z"]["depends_on"] == ["x"]
 
-    def test_get_composes_from_module(self):
-        """Test getting all compose from module"""
+    def test_get_functions_from_module(self):
+        """Test getting all functions from module"""
         sys.path.append(str(Path(__file__).parent))
-        composes = get_composes_from_module("assets.sample_flow")
-        assert len(composes) == 4
+        funcs = get_functions_from_module("assets.sample_flow")
+        assert len(funcs) == 4
 
-    def test_get_all_compose_documentation_from_module(self):
+    def test_get_all_functions_documentation_from_module(self):
         sys.path.append(str(Path(__file__).parent))
-        definition = get_compose_documentation_from_module("assets.sample_flow")
+        definition = get_function_documentation_from_module("assets.sample_flow")
         assert len(definition) == 4
 
 

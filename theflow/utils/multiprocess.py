@@ -5,14 +5,14 @@ import uuid
 from typing import TYPE_CHECKING, Dict, List, cast
 
 if TYPE_CHECKING:
-    from ..base import Compose
+    from ..base import Function
 
 MANAGERS: Dict[str, multiprocessing.managers.BaseManager] = {}
 LOCKS: Dict[str, threading.Lock] = {}
 
 
 def _run_node(task):
-    obj: "Compose" = task[0]
+    obj: "Function" = task[0]
     child_name: str = task[1]
     uid: str = task[2]
     params: Dict = task[3]
@@ -22,7 +22,7 @@ def _run_node(task):
     return node(**params)
 
 
-def parallel(obj: "Compose", child_name: str, tasks: List[Dict], **kwargs):
+def parallel(obj: "Function", child_name: str, tasks: List[Dict], **kwargs):
     """Run a node in parallel with multiprocessing"""
 
     key = uuid.uuid4().hex

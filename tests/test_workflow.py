@@ -1,24 +1,24 @@
 from unittest import TestCase
 
-from theflow.base import Compose
+from theflow.base import Function
 from theflow.utils.multiprocess import parallel
 
 
-class IncrementBy(Compose):
+class IncrementBy(Function):
     x: int
 
     def run(self, y):
         return self.x + y
 
 
-class DecrementBy(Compose):
+class DecrementBy(Function):
     x: int
 
     def run(self, y):
         return self.x - y
 
 
-class MultiplyBy(Compose):
+class MultiplyBy(Function):
     x: int
 
     def run(self, y):
@@ -30,10 +30,10 @@ def allow_multiprocessing(kwargs):
     return func(**kwargs)
 
 
-class MultiprocessingWorkFlow(Compose):
-    increment_by: Compose = IncrementBy.withx(x=1)
-    decrement_by: Compose = DecrementBy.withx(x=1)
-    multiply_by: Compose = MultiplyBy.withx(x=2)
+class MultiprocessingWorkFlow(Function):
+    increment_by: Function = IncrementBy.withx(x=1)
+    decrement_by: Function = DecrementBy.withx(x=1)
+    multiply_by: Function = MultiplyBy.withx(x=2)
 
     def run(self, x, times):
         y = self.decrement_by(x)

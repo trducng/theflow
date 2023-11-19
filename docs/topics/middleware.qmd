@@ -62,7 +62,7 @@ Each middleware execution `__call__` looks something like this:
 
 ```{.python}
 class Middleware:
-    def __init__(self, obj: Compose, next_call: Callable):
+    def __init__(self, obj: Function, next_call: Callable):
         self._obj = obj
         self._next_call = next_call
 
