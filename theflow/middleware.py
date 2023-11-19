@@ -126,19 +126,21 @@ class TrackProgressMiddleware(Middleware):
     """
 
     def __call__(self, *args, **kwargs):
-        if self.obj.abs_pathx() == ".":
+        abs_pathx = self.obj.abs_pathx()
+        if abs_pathx == ".":
             from .runs.base import RunTracker
 
-            self.obj.last_run = RunTracker(self.obj)
-            self.obj.last_run.config = self.obj.config.dump()
+            last_run = RunTracker(self.obj)
+            last_run.config = self.obj.config.dump()
+            self.obj.last_run = last_run
 
-        _ff_name = self.obj.abs_pathx()
         _input = {"args": args, "kwargs": kwargs}
         _output = self.next_call(*args, **kwargs)
-        self.obj.log_progress(_ff_name, input=_input, output=_output)
+        self.obj.log_progress(abs_pathx, input=_input, output=_output)
 
-        if self.obj.abs_pathx() == ".":
-            self.obj.last_run.persist()
+        if abs_pathx == ".":
+            # will be set by the previous code
+            last_run.persist()  # type: ignore
 
         return _output
 

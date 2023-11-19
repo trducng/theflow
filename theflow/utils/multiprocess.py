@@ -23,8 +23,17 @@ def _run_node(task):
 
 
 def parallel(obj: "Function", child_name: str, tasks: List[Dict], **kwargs):
-    """Run a node in parallel with multiprocessing"""
+    """Run a node in parallel with multiprocessing.
 
+    This helper function allows accurately keeping track of the the number of time the
+    `child_name` node is called from the `obj` parent.
+
+    Args:
+        obj (Function): Function object
+        child_name (str): Child name
+        tasks (List[Dict]): List of parameters for each task
+        kwargs: Keyword arguments for multiprocessing.Pool
+    """
     key = uuid.uuid4().hex
     manager = None
     try:
