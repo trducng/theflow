@@ -47,6 +47,19 @@ def import_dotted_string(
     return getattr(module, obj_name)
 
 
+from pathlib import Path
+
+
+def serialize_path(path: Path) -> dict:
+    """Serialize a Path object"""
+    return {"__type__": "pathlib.Path", "path": str(path)}
+
+
+SERIALIZATION_BY_TYPES = {
+    Path: serialize_path,
+}
+
+
 def serialize(value: Any) -> Any:
     """Serialize a value to a JSON-serializable object"""
     if isinstance(value, dict):
