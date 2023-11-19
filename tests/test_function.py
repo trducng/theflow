@@ -13,30 +13,29 @@ class TestFunctionSaveAndLoad(TestCase):
         self.assertEqual(
             d,
             {
-                "type": "tests.assets.sample_flow.Func",
-                "params": {"a": 20, "e": 20, "f": 40},
-                "nodes": {
-                    "m": {
-                        "type": "tests.assets.sample_flow.Sum2",
-                        "params": {"a": 100},
-                        "nodes": {
-                            "mult": {
-                                "nodes": {},
-                                "params": {"a": 10},
-                                "type": "tests.assets.sample_flow.Multiply",
-                            }
-                        },
+                "__type__": "tests.assets.sample_flow.Func",
+                "a": 20,
+                "e": 20,
+                "f": 40,
+                "m": {
+                    "__type__": "tests.assets.sample_flow.Sum2",
+                    "a": 100,
+                    "mult": {
+                        "__type__": "tests.assets.sample_flow.Multiply",
+                        "a": 10,
                     },
-                    "x": {
-                        "type": "tests.assets.sample_flow.Sum1",
-                        "params": {"a": 20, "b": 10, "c": 10},
-                        "nodes": {},
-                    },
-                    "y": {
-                        "type": "tests.assets.sample_flow.Sum1",
-                        "params": {"a": 100, "b": 10, "c": 10},
-                        "nodes": {},
-                    },
+                },
+                "x": {
+                    "__type__": "tests.assets.sample_flow.Sum1",
+                    "a": 20,
+                    "b": 10,
+                    "c": 10,
+                },
+                "y": {
+                    "__type__": "tests.assets.sample_flow.Sum1",
+                    "a": 100,
+                    "b": 10,
+                    "c": 10,
                 },
             },
         )
@@ -48,35 +47,38 @@ class TestFunctionSaveAndLoad(TestCase):
         self.assertEqual(
             d,
             {
-                "type": "tests.assets.sample_flow.Func",
-                "params": {"a": 20, "e": 20, "f": 40},
-                "nodes": {
-                    "m": {
-                        "type": "tests.assets.sample_flow.Sum2",
-                        "params": {"a": 100},
-                        "nodes": {
-                            "mult": {
-                                "nodes": {},
-                                "params": {"a": 10},
-                                "type": "tests.assets.sample_flow.Multiply",
-                            }
-                        },
+                "__type__": "tests.assets.sample_flow.Func",
+                "a": 20,
+                "e": 20,
+                "f": 40,
+                "m": {
+                    "__type__": "tests.assets.sample_flow.Sum2",
+                    "a": 100,
+                    "mult": {
+                        "__type__": "tests.assets.sample_flow.Multiply",
+                        "a": 10,
                     },
-                    "x": {
-                        "type": "tests.assets.sample_flow.Sum1",
-                        "params": {"a": 20, "b": 10, "c": 10, "d": 20},
-                        "nodes": {},
-                    },
-                    "y": {
-                        "type": "tests.assets.sample_flow.Sum1",
-                        "params": {"a": 100, "b": 10, "c": 10, "d": 20},
-                        "nodes": {},
-                    },
-                    "z": {
-                        "type": "tests.assets.sample_flow.Sum1",
-                        "params": {"a": 200, "b": 10, "c": 10, "d": 20},
-                        "nodes": {},
-                    },
+                },
+                "x": {
+                    "__type__": "tests.assets.sample_flow.Sum1",
+                    "a": 20,
+                    "b": 10,
+                    "c": 10,
+                    "d": 20,
+                },
+                "y": {
+                    "__type__": "tests.assets.sample_flow.Sum1",
+                    "a": 100,
+                    "b": 10,
+                    "c": 10,
+                    "d": 20,
+                },
+                "z": {
+                    "__type__": "tests.assets.sample_flow.Sum1",
+                    "a": 200,
+                    "b": 10,
+                    "c": 10,
+                    "d": 20,
                 },
             },
         )

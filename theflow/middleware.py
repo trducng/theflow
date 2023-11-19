@@ -154,9 +154,9 @@ class CachingMiddleware(Middleware):
         super().__init__(*args, **kwargs)
 
         from .settings import settings
-        from .utils.modules import init_object
+        from .utils.modules import deserialize
 
-        self._cache = init_object(settings.CACHE, safe=False)
+        self._cache = deserialize(settings.CACHE, safe=False)
 
     def __call__(self, *args, **kwargs):
         try:

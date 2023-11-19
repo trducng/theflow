@@ -1,7 +1,7 @@
 from typing import Any, Optional
 
 from .settings import settings
-from .utils.modules import init_object
+from .utils.modules import deserialize
 
 
 class Context:
@@ -25,7 +25,7 @@ class Context:
     def __init__(self):
         """Initialize the context"""
 
-        self._cache = init_object(settings.CACHE, safe=False)
+        self._cache = deserialize(settings.CACHE, safe=False)
         self._global_key = "__global_key__"
         self._cache.set("__global_key__", {})
         self._cache.set("__all_contexts__", [])
