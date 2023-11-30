@@ -17,8 +17,8 @@ from .runs.base import RunTracker
 from .settings import settings
 from .utils.modules import (
     ObjectInitDeclaration,
+    deserialize,
     import_dotted_string,
-    init_object,
     serialize,
 )
 from .utils.pretties import unflatten_dict
@@ -612,14 +612,14 @@ class NodeAttr(Attr[_NAttr]):
 
 
 _node_cls: type[NodeAttr] = (
-    init_object(settings.NODE_CLASS, safe=False)
+    deserialize(settings.NODE_CLASS, safe=False)
     if getattr(settings, "NODE_CLASS", "")
     else NodeAttr
 )
 
 
 _param_cls: type[ParamAttr] = (
-    init_object(settings.PARAM_CLASS, safe=False)
+    deserialize(settings.PARAM_CLASS, safe=False)
     if getattr(settings, "PARAM_CLASS", "")
     else ParamAttr
 )
@@ -1056,7 +1056,7 @@ class Function(metaclass=MetaFunction):
 
     def _initialize(self):
         if self._ff_context is None:
-            self._ff_context = init_object(settings.CONTEXT, safe=False)
+            self._ff_context = deserialize(settings.CONTEXT, safe=False)
 
         if not hasattr(self, "_ff_init_called"):
             raise RuntimeError(
@@ -1217,20 +1217,27 @@ class Function(metaclass=MetaFunction):
             "nodes": nodes,
         }
 
-    def dump(self, ignore_depends: bool = True) -> dict:
+    def dump(self, ignore_depends: bool = True, strict: bool = True) -> dict:
         """Export the flow to a dictionary
+
+        This method largely follows `theflow.utils.modules.serialize`, with the added
+        options to modify the behavior of serialization.
 
         Args:
             ignore_depends: whether to ignore params and nodes that depend on others
+            strict: whether to raise error if any param or node cannot be serialized
         """
         nodes: dict = {}
         for node in self._ff_nodes:
             try:
-                node_obj: Function = getattr(self, node)
+                obj: Function = getattr(self, node)
                 if self.specs(node).get("depends_on", []) and ignore_depends:
                     continue
-                nodes[node] = node_obj.dump(ignore_depends=ignore_depends)
-            except Exception:
+                nodes[node] = obj.dump(ignore_depends=ignore_depends, strict=strict)
+            except Exception as e:
+                if strict:
+                    raise e from None
+                logger.warn(e)
                 nodes[node] = None
 
         params = {}
@@ -1240,13 +1247,14 @@ class Function(metaclass=MetaFunction):
             try:
                 params[name] = serialize(value)
             except ValueError as e:
+                if strict:
+                    raise e from None
                 logger.warn(e)
-                continue
 
         return {
-            "type": f"{self.__module__}.{self.__class__.__qualname__}",
-            "params": params,
-            "nodes": nodes,
+            "__type__": f"{self.__module__}.{self.__class__.__qualname__}",
+            **params,
+            **nodes,
         }
 
     def specs(self, path: str) -> dict:
@@ -1491,7 +1499,7 @@ class ProxyFunction(Function):
 
     def __call__(self, *args, **kwargs):
         if self._ff_context is None:
-            self._ff_context = init_object(settings.CONTEXT, safe=False)
+            self._ff_context = deserialize(settings.CONTEXT, safe=False)
 
         return self._create_callable(getattr(self.ff_original_obj, "__call__"))(
             *args, **kwargs
@@ -1504,7 +1512,7 @@ class ProxyFunction(Function):
             )
 
         if self._ff_context is None:
-            self._ff_context = init_object(settings.CONTEXT, safe=False)
+            self._ff_context = deserialize(settings.CONTEXT, safe=False)
 
         attr = getattr(self.ff_original_obj, name)
         if callable(attr):
