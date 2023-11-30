@@ -1014,7 +1014,24 @@ class Function(metaclass=MetaFunction):
         return f"{self.__class__.__name__}({kwargs})"
 
     def __str__(self):
-        return f"{self.__class__.__name__} (nodes: {self._ff_nodes})"
+        """Represent hierarchical structure of the Function"""
+        if self._ff_nodes:
+            kwargs = []
+            for key in reversed(self._ff_nodes):
+                value = str(getattr(self, key, None))
+                value = value.replace("\n", "\n  ")
+                kwargs.append(f"  ({key}): {value}")
+            kwargs_repr = "\n".join(kwargs)
+            return f"{self.__class__.__name__}(\n{kwargs_repr}\n)"
+
+        kwargs = []
+        for key in self._ff_params:
+            value = str(getattr(self, key, None))
+            if len(value) > 20:
+                value = f"{value[:15]}..."
+            kwargs.append(f"{key}={value}")
+        kwargs_repr = ", ".join(kwargs)
+        return f"{self.__class__.__name__}({kwargs_repr})"
 
     def _get_context(self) -> Context | None:
         return self._ff_context
