@@ -7,9 +7,25 @@ from collections import defaultdict
 from copy import deepcopy
 from functools import lru_cache
 from typing import _GenericAlias  # type: ignore
-from typing import Any, Callable, ForwardRef, Generic, TypeVar, cast, overload
+from typing import (
+    Any,
+    Callable,
+    ForwardRef,
+    Generic,
+    TypeVar,
+    cast,
+    get_type_hints,
+    overload,
+)
 
 from typing_extensions import dataclass_transform
+
+try:
+    from types import GenericAlias
+
+    _generic_alias_types: tuple = (_GenericAlias, GenericAlias)
+except ImportError:
+    _generic_alias_types = (_GenericAlias,)
 
 from .config import Config, ConfigProperty, DefaultConfig
 from .context import Context
@@ -41,11 +57,10 @@ def is_node_type(annotation) -> bool:
     if isinstance(annotation, ForwardRef):
         annotation = annotation._evaluate(globals(), locals(), frozenset())
         return is_node_type(annotation)
+    if isinstance(annotation, _generic_alias_types):
+        return issubclass(annotation.__origin__, NodeAttr)
     if isinstance(annotation, type):
         return issubclass(annotation, Function) or issubclass(annotation, NodeAttr)
-    if isinstance(annotation, _GenericAlias):
-        if issubclass(annotation.__origin__, NodeAttr):
-            return True
     return False
 
 
@@ -760,8 +775,14 @@ Param = _ParamWrapper()
 
 class MetaFunction(ABCMeta):
     def __new__(cls, clsname, bases, attrs):
+        # Will deprecate in Python 3.13. Now we needs to create the obj to reliably
+        # obtain type annotations.
+        _obj: type[Function] = super().__new__(
+            cls, clsname, bases, attrs  # type: ignore
+        )
+
         # Make sure all nodes and params have the Node and Param descriptor
-        for name, value in attrs.get("__annotations__", {}).items():
+        for name, value in get_type_hints(_obj).items():
             if name.startswith("_"):
                 continue
             if name in attrs and isinstance(attrs[name], (NodeAttr, ParamAttr)):
