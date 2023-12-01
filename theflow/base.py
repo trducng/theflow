@@ -4,6 +4,7 @@ import inspect
 import logging
 from abc import ABCMeta, abstractmethod
 from collections import defaultdict
+from copy import deepcopy
 from functools import lru_cache
 from typing import _GenericAlias  # type: ignore
 from typing import Any, Callable, ForwardRef, Generic, TypeVar, cast, overload
@@ -148,7 +149,7 @@ class Attr(Generic[_Attr]):
             if isinstance(self._default, ObjectInitDeclaration):
                 value = self._default()
             else:
-                value = self._default
+                value = deepcopy(self._default)
             value = cast(_Attr, value)
         elif not isinstance(self._default_callback, unset_):
             value = self._default_callback(obj)
