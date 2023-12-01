@@ -1,23 +1,18 @@
 import multiprocessing
 import multiprocessing.managers
-import threading
-import uuid
 from typing import TYPE_CHECKING, Dict, List, cast
 
 if TYPE_CHECKING:
     from ..base import Function
 
-MANAGERS: Dict[str, multiprocessing.managers.BaseManager] = {}
-LOCKS: Dict[str, threading.Lock] = {}
-
 
 def _run_node(task):
     obj: "Function" = task[0]
     child_name: str = task[1]
-    uid: str = task[2]
-    params: Dict = task[3]
+    params: Dict = task[2]
+    lock = task[3]
 
-    with LOCKS[uid]:
+    with lock:
         node = getattr(obj, child_name)
     return node(**params)
 
@@ -34,16 +29,13 @@ def parallel(obj: "Function", child_name: str, tasks: List[Dict], **kwargs):
         tasks (List[Dict]): List of parameters for each task
         kwargs: Keyword arguments for multiprocessing.Pool
     """
-    key = uuid.uuid4().hex
     manager = None
     try:
         manager = multiprocessing.Manager()
         obj._ff_childs_called = cast("dict", manager.dict(obj._ff_childs_called))
         lock = manager.Lock()
-        MANAGERS[key] = manager
-        LOCKS[key] = lock
 
-        tasks_mp = [(obj, child_name, key, task) for task in tasks]
+        tasks_mp = [(obj, child_name, task, lock) for task in tasks]
         with multiprocessing.Pool(**kwargs) as pool:
             yield from pool.imap(_run_node, tasks_mp)
     finally:
@@ -51,7 +43,3 @@ def parallel(obj: "Function", child_name: str, tasks: List[Dict], **kwargs):
             obj._ff_childs_called = obj._ff_childs_called.copy()
         if manager is not None:
             manager.shutdown()
-        if key in MANAGERS:
-            del MANAGERS[key]
-        if key in LOCKS:
-            del LOCKS[key]
