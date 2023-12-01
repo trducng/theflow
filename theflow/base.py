@@ -783,6 +783,8 @@ class MetaFunction(ABCMeta):
 
         # Make sure all nodes and params have the Node and Param descriptor
         for name, value in get_type_hints(_obj).items():
+            if name not in attrs.get("__annotations__", {}):
+                continue
             if name.startswith("_"):
                 continue
             if name in attrs and isinstance(attrs[name], (NodeAttr, ParamAttr)):
