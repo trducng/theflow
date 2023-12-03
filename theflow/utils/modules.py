@@ -49,11 +49,15 @@ def import_dotted_string(
 
 
 def serialize_path(path: Path) -> dict:
-    """Serialize a Path object"""
+    """Serialize a Path object.
+
+    For cross-platform compatibility, the type will be "pathlib.Path" rather than
+    "posixpath" or "ntpath".
+    """
     return {"__type__": "pathlib.Path", "path": str(path)}
 
 
-SERIALIZATION_BY_TYPES = {
+SERIALIZE_BY_TYPES = {
     Path: serialize_path,
 }
 
@@ -76,6 +80,10 @@ def serialize(value: Any) -> Any:
         if value.__name__ == "<lambda>":
             raise ValueError("Cannot serialize lambda functions")
         return f"{{{{ {value.__module__}.{value.__name__} }}}}"
+
+    for base in value.__class__.mro()[:-1]:
+        if base in SERIALIZE_BY_TYPES:
+            return SERIALIZE_BY_TYPES[base](value)
 
     if value.__module__ == "builtins":
         return f"{{{{ {value.__module__}.{value.__name__} }}}}"

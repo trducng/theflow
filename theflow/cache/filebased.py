@@ -10,7 +10,7 @@ class FileCache(BaseCache):
 
     def __init__(self, path):
         try:
-            import diskcache
+            import diskcache  # type: ignore
         except ImportError:
             raise ImportError(
                 "The diskcache package is required to use the FileBasedCache. "
@@ -65,3 +65,14 @@ class FileCache(BaseCache):
     @property
     def lock(self):
         return self._lock
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state.pop("_lock")
+        return state
+
+    def __setstate__(self, state):
+        import diskcache  # type: ignore
+
+        self.__dict__.update(state)
+        self._lock = diskcache.RLock(self._cache, "__lock__")

@@ -1,6 +1,8 @@
 import abc
-from threading import Lock
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from threading import Lock
 
 
 class BaseCache(abc.ABC):
@@ -147,7 +149,7 @@ class BaseCache(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def lock(self) -> Lock:
+    def lock(self) -> "Lock":
         """Acquire a lock for long-running operations
 
         Returns:
