@@ -258,6 +258,19 @@ definition. Also, you can add them in project-wide settings: `NODE_CLASS` and
 definition.
 
 
+## Creating Function
+
+### Syntax shortcut to create sequential and concurrent functions
+
+`theflow` supports `>>` operator to create a sequential function, and supports a
+`//` operator to create concurrent function.
+
+When running `func1 >> func2`, it will create a sequential function that runs
+`func1` first, then `func2`.
+
+When running `func1 // func2`, it will create a concurrent function that runs
+`func1` and `func2` at the same time and returns a tuple of results.
+
 ## Function internals
 
 ### Declare and list protected keywords
