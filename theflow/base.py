@@ -942,6 +942,30 @@ class Function(metaclass=MetaFunction):
         self._ff_flow_name: str = ""  # the run name
         self._ff_childs_called: dict = {}  # only available for root
 
+    def __rshift__(self, other: Function) -> SequentialFunction:
+        """Return a sequential function"""
+        if isinstance(other, SequentialFunction):
+            return SequentialFunction(funcs=[self, *other.funcs])
+        if isinstance(self, SequentialFunction):
+            return SequentialFunction(funcs=[*self.funcs, other])
+        if not isinstance(other, Function):
+            raise ValueError(
+                f"Can only chain Function, but receive type: {other.__class__.__name__}"
+            )
+        return SequentialFunction(funcs=[self, other])
+
+    def __floordiv__(self, other: Function) -> ConcurrentFunction:
+        """Return a sequential function"""
+        if isinstance(other, ConcurrentFunction):
+            return ConcurrentFunction(funcs=[self, *other.funcs])
+        if isinstance(self, ConcurrentFunction):
+            return ConcurrentFunction(funcs=[*self.funcs, other])
+        if not isinstance(other, Function):
+            raise ValueError(
+                f"Can only chain Function, but receive type: {other.__class__.__name__}"
+            )
+        return ConcurrentFunction(funcs=[self, other])
+
     def abs_pathx(self) -> str:
         """Get the node absolute path in execution flow.
 
@@ -1564,3 +1588,40 @@ class ProxyFunction(Function):
         if hasattr(self.ff_original_obj, "run") and callable(self._ff_original_obj.run):
             return self.ff_original_obj.run(*args, **kwargs)
         raise NotImplementedError(f"{self.ff_original_obj}.run doesn't exist")
+
+
+class SequentialFunction(Function):
+    """Sequential functions"""
+
+    funcs: list[Function] = []
+
+    def __len__(self):
+        return len(self.funcs)
+
+    def __getitem__(self, idx):
+        return self.funcs[idx]
+
+    def run(self, arg):
+        for idx, func in enumerate(self.funcs):
+            self._prepare_child(func, f"func{idx}_{func.__class__.__name__}")
+            arg = func(arg)
+        return arg
+
+
+class ConcurrentFunction(Function):
+    """Run functions concurrently"""
+
+    funcs: list[Function] = []
+
+    def __len__(self):
+        return len(self.funcs)
+
+    def __getitem__(self, idx):
+        return self.funcs[idx]
+
+    def run(self, arg):
+        output = []
+        for idx, func in enumerate(self.funcs):
+            self._prepare_child(func, f"func{idx}_{func.__class__.__name__}")
+            output.append(func(arg))
+        return output
