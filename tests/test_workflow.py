@@ -107,3 +107,43 @@ def test_mixed_sequential_concurrent_function_complex():
         flow.last_run.logs(".func1_SequentialFunction.func1_IncrementBy")["output"]
         == 13
     )
+
+
+class DuplicateNodeCall(Function):
+    increment_by: Function = IncrementBy.withx(x=1)
+
+    def run(self, x):
+        result = -1
+        if isinstance(self.increment_by, IncrementBy):
+            result = self.increment_by(y=x)
+
+        return result
+
+
+class NonDuplicateNodeCall(Function):
+    increment_by: Function = IncrementBy.withx(x=1)
+
+    def run(self, x):
+        result = -1
+        if isinstance(self.get_from_path("increment_by"), IncrementBy):
+            result = self.increment_by(y=x)
+
+        return result
+
+
+def test_duplicate_node_call():
+    """Undesired logs"""
+    flow = DuplicateNodeCall()
+    output = flow(1)
+    assert output == 2, "Should have incremented by 1"
+    assert ".increment_by" not in flow.last_run.logs()
+    assert ".increment_by[1]" in flow.last_run.logs()
+
+
+def test_non_duplicate_node_call():
+    """Desired logs"""
+    flow = NonDuplicateNodeCall()
+    output = flow(1)
+    assert output == 2, "Should have incremented by 1"
+    assert ".increment_by" in flow.last_run.logs()
+    assert ".increment_by[1]" not in flow.last_run.logs()

@@ -6,7 +6,7 @@ code-annotations: select
 
 ## Node and Param related functionalities
 
-### Declare Node and Param
+### Declare node and param
 
 Node and params are Function attributes.
 
@@ -207,6 +207,84 @@ parent. This also applies to nested node and params of child nodes as well (e.g.
 One can also access with `.get_from_path(path: str)`, where path is a
 `.`-delimited path. This method is convenient in case one has a string
 representation of a param or node path.
+
+During function execution (`run` is executed), if a node is accessed with
+`.get_from_path(path)`, the relationship between the parent function and the
+node will not be established.
+
+Example:
+
+```python
+from theflow import Function
+
+class Inner(Function):
+    x: int = 1
+    def run(self, y):
+        return self.x + y
+
+
+class Outer(Function):
+    inner: Inner = Inner.withx(x=1)
+    def run(self, y):
+        if isinstance(self.inner, Inner):
+            return self.inner(y)
+        return 0
+
+flow = Outer()
+flow(1)
+print(flow.last_run.logs().keys())
+```
+
+You will see that `.inner[1]` shows up rather than `.inner`. This is because the
+`.inner` name is registered when it is called in the `isinstance(...)` call. As
+a result, `self.inner(y)` will be registered with `.inner[1]`. To avoid this,
+use `isinstance(self.get_from_path("inner"), Inner)` instead.
+
+#### Manually establish the connection between parent and child node
+
+Sometimes during `run` execution, the parent function and child node cannot be
+automatically established. This can happens if the node is not explicitly
+declared or annotated as a node, but as a value inside a dict or list.
+
+Example:
+
+```python
+from theflow import Function
+
+class Inner(Function):
+    x: int = 1
+    def run(self, y):
+        return self.x + y
+
+
+class Outer(Function):
+    funcs: list[Function]
+    def run(self, y):
+        return self.funcs[0](y)
+
+
+flow = Outer(funcs=[Inner(x=1)])
+flow.run(1)
+print(flow.last_run.logs().keys())
+```
+
+You won't see the logging of inner funcions, because those functions aren't
+officially registered as nodes in the parent function, but as value of params
+`funcs`. To explicitly establish the relationship between parent function and
+child node during `run` execution, you can call `self._prepare_child(node,
+name)` on the child. This will link the node with the parent function under the
+name `name`.
+
+In the above example, one can do:
+
+```python
+class Outer(Function):
+    funcs: list[Function]
+    def run(self, y):
+        child = self.funcs[0]
+        self._prepare_child(child, "inner")
+        return child(y)
+```
 
 ### Get missing nodes and params
 

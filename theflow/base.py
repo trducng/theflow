@@ -886,6 +886,7 @@ class Function(metaclass=MetaFunction):
 
     def __init__(self, _params: dict | None = None, /, **params):
         self.last_run: RunTracker
+        self._track_child: bool = True
         self._attrx: dict[str, dict[str, Any]] = {"NodeAttr": {}, "ParamAttr": {}}
         self.__ff_depends__: dict[str, dict[str, int]] = defaultdict(dict)
         self.__ff_run_kwargs__: dict[str, Any] = {}
@@ -1168,7 +1169,7 @@ class Function(metaclass=MetaFunction):
         return ProxyFunction(ff_original_obj=value)
 
     def _prepare_child(self, child: Function, name: str):
-        if self._ff_in_run:
+        if self._ff_in_run and self._track_child:
             child._ff_prefix = self.abs_pathx()
             child._ff_name = (
                 name
@@ -1379,7 +1380,7 @@ class Function(metaclass=MetaFunction):
         return {"params": params, "nodes": nodes}
 
     def get_from_path(self, path) -> Any:
-        """Get a node or param by path
+        """Get a node or param by path, with tracking disabled
 
         Args:
             path: the path to the node or param (.) delimited
@@ -1387,13 +1388,18 @@ class Function(metaclass=MetaFunction):
         Returns:
             Node or param, depending on the path
         """
+        self._track_child = False
         path = path.strip(".")
 
         if "." in path:
             module, subpath = path.split(".", 1)
-            return getattr(self, module).get_from_path(subpath)
+            obj = getattr(self, module)
+            self._track_child = True
+            return obj.get_from_path(subpath)
 
-        return getattr(self, path)
+        obj = getattr(self, path)
+        self._track_child = True
+        return obj
 
     def is_compatible(self, path, obj) -> bool:
         """Check if the interface of a sample is compatible with the declared interface
