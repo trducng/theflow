@@ -335,6 +335,40 @@ definition. Also, you can add them in project-wide settings: `NODE_CLASS` and
 `PARAM_CLASS` respectively, and they will take effect as default node and param
 definition.
 
+### Param value pass-through
+
+Param values are defined based on these hierarchy:
+
+1. Explicit value.
+2. Default value.
+   1. Default value
+   2. Default callback
+3. Pass-through value.
+
+Pass-through params include `init` params and `run` params.
+
+TODO:
+
+- Subclass `def params` and `def nodes` for the mixin. Test that it works.
+- Add config: `params_publish` and `params_subscribe`. They have default value set
+  to False.
+- When params_publish is True, all of the valid params during: init, run, and
+  manually set will be stored temporarily in the cache.
+  the params to the cache.
+- When params_subscribe is True, the params will be loaded from the cache if
+  they aren't explicitly set and they don't have default value. These are the
+  init and run params.
+- Implement methods to:
+  - Set params to cache
+  - Check if params exist in the cache
+  - Load params from cache
+  - Delete params from cache
+- The cache location is in the pipeline scope, signified by `_ff_flow_name` and
+  `_ff_run_id`.
+- Add an `allow_extra` config, which allow the Function to tolerate extra
+  supplied init and run params.
+- Create test.
+- Implement this logic to `run` params.
 
 ## Creating Function
 

@@ -408,6 +408,7 @@ class ParamAttr(Attr[_PAttr]):
         self._refresh_on_set = refresh_on_set
         self._strict_type = strict_type
         self._type = None
+        self._attrx = "ParamAttr"
 
     def __set__(self, obj: Function, value: Any):
         if self._strict_type:
@@ -426,6 +427,37 @@ class ParamAttr(Attr[_PAttr]):
         super().__delete__(obj)
         if self._refresh_on_set:
             obj._initialize()
+
+    @overload
+    def __get__(self, obj: None, _: type[Function] | None) -> ParamAttr:
+        ...
+
+    @overload
+    def __get__(self, obj: Function, _: type[Function] | None) -> _PAttr:
+        ...
+
+    def __get__(
+        self, obj: Function | None, _: type[Function] | None = None
+    ) -> _PAttr | ParamAttr:
+        if obj is None:
+            return self
+
+        try:
+            return super().__get__(obj, _)
+        except AttributeError as e:
+            if obj.config.params_subscribe and obj._ff_prefix:
+                context = f"{obj.flow_qualidx()}|published_params"
+                if not obj.context.has_context(context):
+                    raise e
+                value = obj.context.get(
+                    name=self._name,
+                    default=unset,
+                    context=context,
+                )
+                if value != unset:
+                    obj._attrx[self._attrx][self._name] = value
+                    return value
+            raise e
 
     @classmethod
     def auto(
@@ -543,6 +575,8 @@ class NodeAttr(Attr[_NAttr]):
             self._input = input_signature(default.run)  # type: ignore
         if self._output == unset and has_run_method:
             self._output = output_signature(default.run)  # type: ignore
+
+        self._attrx = "NodeAttr"
 
     @overload
     def __get__(self, obj: None, _: type[Function] | None) -> NodeAttr:
@@ -887,7 +921,11 @@ class Function(metaclass=MetaFunction):
     def __init__(self, _params: dict | None = None, /, **params):
         self.last_run: RunTracker
         self._track_child: bool = True
-        self._attrx: dict[str, dict[str, Any]] = {"NodeAttr": {}, "ParamAttr": {}}
+        self._attrx: dict[str, dict[str, Any]] = {
+            "NodeAttr": {},
+            "ParamAttr": {},
+            "AllowExtraParam": {},
+        }
         self.__ff_depends__: dict[str, dict[str, int]] = defaultdict(dict)
         self.__ff_run_kwargs__: dict[str, Any] = {}
         self._ff_params: list[str] = []
@@ -1035,6 +1073,24 @@ class Function(metaclass=MetaFunction):
             self.context.create_context(context=self.flow_qualidx())
             self.context.set("run_id", self._ff_run_id, context=self.flow_qualidx())
 
+            # publish parameters to the shared cache
+            if self.config.params_publish:
+                self.context.create_context(
+                    context=f"{self.flow_qualidx()}|published_params",
+                )
+                for k, v in self.params.items():
+                    self.context.set(
+                        name=k,
+                        value=v,
+                        context=f"{self.flow_qualidx()}|published_params",
+                    )
+                for k, v in self._attrx["AllowExtraParam"].items():
+                    self.context.set(
+                        name=k,
+                        value=v,
+                        context=f"{self.flow_qualidx()}|published_params",
+                    )
+
         self.context.create_context(context=self.qualidx(), exist_ok=True)
 
         if self.__ff_run_kwargs__:
@@ -1049,6 +1105,13 @@ class Function(metaclass=MetaFunction):
                 if self._middleware
                 else self._runx(*args, **kwargs)
             )
+
+            if not self._ff_prefix:  # only root node has prefix as empty
+                if self.config.params_publish:
+                    self.context.clear(
+                        None,
+                        context=f"{self.flow_qualidx()}|published_params",
+                    )
         except Exception as e:
             raise e from None
         finally:
@@ -1117,6 +1180,13 @@ class Function(metaclass=MetaFunction):
         if name in self._ff_nodes:
             if not isinstance(value, Function):
                 value = self._make_composable(value)
+        elif name not in self._ff_params and name not in self._protected_keywords():
+            if self.config.allow_extra:
+                self._attrx["AllowExtraParam"][name] = value
+            else:
+                raise AttributeError(
+                    f"Attribute {name} is not defined in {self.__class__.__name__}"
+                )
 
         return super().__setattr__(name, value)
 
