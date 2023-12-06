@@ -6,8 +6,8 @@ from .assets.sample_flow import Func, Multiply, Sum1, Sum2, callback
 
 
 class TestFunctionSaveAndLoad(TestCase):
-    def test_save_ignore_depend_as_default(self):
-        """By default, ignore_depends for the output"""
+    def test_save_ignore_auto_as_default(self):
+        """By default, ignore_auto for the output"""
         obj = Func(a=20, e=20, x=Sum1(a=20))
         d = obj.dump()
         self.assertEqual(
@@ -16,7 +16,6 @@ class TestFunctionSaveAndLoad(TestCase):
                 "__type__": "tests.assets.sample_flow.Func",
                 "a": 20,
                 "e": 20,
-                "f": 40,
                 "m": {
                     "__type__": "tests.assets.sample_flow.Sum2",
                     "a": 100,
@@ -40,10 +39,10 @@ class TestFunctionSaveAndLoad(TestCase):
             },
         )
 
-    def test_save_no_ignore_depends(self):
-        """Include params and nodes with ignore_depends"""
+    def test_save_no_ignore_auto(self):
+        """Include params and nodes with ignore_auto"""
         obj = Func(a=20, e=20, x=Sum1(a=20))
-        d = obj.dump(ignore_depends=False)
+        d = obj.dump(ignore_auto=False)
         self.assertEqual(
             d,
             {
@@ -84,7 +83,7 @@ class TestFunctionSaveAndLoad(TestCase):
         )
 
     def test_load_successfully_unsafe(self):
-        """By default, ignore_depends for the output"""
+        """By default, ignore_auto for the output"""
         obj = Func(a=20, e=20, x=Sum1(a=20))
         d = obj.dump()
         obj2 = load(d, safe=False)

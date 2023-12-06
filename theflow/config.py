@@ -24,6 +24,11 @@ class DefaultConfig:
         "theflow.middleware.CachingMiddleware": False,
     }
 
+    # params
+    params_publish = False
+    params_subscribe = True
+    allow_extra: bool = False
+
 
 class ConfigGet:
     """A wrapper class for config retrieval"""
@@ -95,6 +100,9 @@ class Config:
         function_name: str
         middleware_section: str
         middleware_switches: dict[str, bool]
+        params_publish: bool
+        params_subscribe: bool
+        allow_extra: bool
 
     def __init__(
         self,

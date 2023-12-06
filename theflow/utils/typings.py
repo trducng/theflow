@@ -57,7 +57,9 @@ def is_compatible_with(type1, type2) -> bool:
     return False
 
 
-def input_signature(func: Callable, ignore_bound: bool = True) -> dict:
+def input_signature(
+    func: Callable, ignore_bound: bool = True
+) -> tuple[dict, bool, bool]:
     """Get the input signature of a function or method
 
     Args:
@@ -65,17 +67,22 @@ def input_signature(func: Callable, ignore_bound: bool = True) -> dict:
         ignore_bound: ignore the first argument if it is self or cls
 
     Returns:
-        a dict of {argument_name: argument_type}
+        - a dict of {argument_name: argument_type}
+        - a bool indicating if the function has *args
+        - a bool indicating if the function has **kwargs
     """
     args = inspect.signature(func).parameters
     type_annotation = {}
     bounds = {"self", "cls"}
+    has_args, has_kwargs = False, False
     for name, arg in args.items():
         if name in bounds and ignore_bound:
             continue
         if arg.kind == inspect.Parameter.VAR_POSITIONAL:
+            has_args = True
             continue
         if arg.kind == inspect.Parameter.VAR_KEYWORD:
+            has_kwargs = True
             continue
         if arg.annotation is not inspect.Parameter.empty:
             type_annotation[name] = arg.annotation
@@ -85,7 +92,7 @@ def input_signature(func: Callable, ignore_bound: bool = True) -> dict:
             continue
         type_annotation[name] = Any
 
-    return type_annotation
+    return type_annotation, has_args, has_kwargs
 
 
 def output_signature(func: Callable) -> Any:

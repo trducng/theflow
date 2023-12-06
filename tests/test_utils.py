@@ -13,8 +13,9 @@ from theflow.utils.documentation import (
 from theflow.utils.hashes import naivehash
 from theflow.utils.modules import deserialize, import_dotted_string, serialize
 from theflow.utils.paths import is_name_matched, is_parent_of_child
+from theflow.utils.typings import input_signature
 
-from .assets.sample_flow import Func, Sum1
+from .assets.sample_flow import Func, Sum1, Sum2
 
 
 class TestNameMatching(TestCase):
@@ -410,3 +411,20 @@ class TestNaiveHash(TestCase):
     def test_hash_python_instance(self):
         self.assertEqual(naivehash()(A(1, 2)), "a3b30166e8d9c76ec6fadc524618e702")
         self.assertEqual(naivehash()(B(1, 2)), "9f3ae35d4506b1c469236d0c4707f79a")
+
+
+def test_input_signature_of_run():
+    func_input, func_args, func_kwargs = input_signature(Func.run)
+    assert list(func_input.keys()) == ["ma", "mb"], "Should ignore self"
+    assert func_args is False, "Should not have *args"
+    assert func_kwargs is False, "Should not have **kwargs"
+
+    sum1_input, sum1_args, sum1_kwargs = input_signature(Sum1.run)
+    assert list(sum1_input.keys()) == [], "Should be empty if no var"
+    assert sum1_args is False, "Should not have *args"
+    assert sum1_kwargs is False, "Should not have **kwargs"
+
+    sum2_input, sum2_args, sum2_kwargs = input_signature(Sum2.run)
+    assert list(sum2_input.keys()) == ["a", "b"], "Should ignore args, kwargs"
+    assert sum2_args is True, "Should have *args"
+    assert sum2_kwargs is True, "Should have **kwargs"

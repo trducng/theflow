@@ -335,6 +335,22 @@ definition. Also, you can add them in project-wide settings: `NODE_CLASS` and
 `PARAM_CLASS` respectively, and they will take effect as default node and param
 definition.
 
+### Param value pass-through
+
+Param values are defined based on these hierarchy:
+
+1. Explicit value.
+2. Default value.
+   1. Default value
+   2. Default callback
+3. Pass-through value.
+
+Pass-through params include `init` params and not `run` params.
+
+When a root node has `params_publish` config set to True, all of its params will
+be stored in the cache. When a child node has `params_subscribe` config set to
+True, it will load the params from the cache if they aren't explicitly set and
+they don't have default value.
 
 ## Creating Function
 

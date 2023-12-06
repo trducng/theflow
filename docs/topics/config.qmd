@@ -3,3 +3,28 @@ title: "Config"
 highlight-style: github
 code-annotations: select
 ---
+
+## Params and nodes configs
+
+### param_publish
+
+Default: False.
+
+If True, the root node will publish the params to the shared cache. The child
+node can access these params through the cache.
+
+### param_subscribe
+
+Default: True.
+
+If True, the non-root node will look for the param values in the shared cache
+in case the param is not explicitly set by user and doesn't have default value.
+If False, the node will not look for param in shared cache.
+
+### allow_extra
+
+Default: False.
+
+If True, the function will allow extra params that are not defined in the
+function definition without raising an error. If False, the function will raise
+error when the extra params are passed during its initialization.

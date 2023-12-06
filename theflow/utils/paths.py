@@ -84,12 +84,17 @@ def temp_path() -> str:
     Returns:
         the default temporary directory
     """
+    import getpass
     import os
     import tempfile
 
     default: str = os.environ.get("THEFLOW_TEMP_PATH", "")
     if not default:
-        path = Path(tempfile.gettempdir(), f"theflow_{os.getlogin()}")
+        try:
+            username = getpass.getuser()
+        except Exception:
+            username = ""
+        path = Path(tempfile.gettempdir(), f"theflow_{username}")
     else:
         path = Path(default)
     path.mkdir(exist_ok=True, parents=True)
