@@ -1048,7 +1048,7 @@ class Function(metaclass=MetaFunction):
         self._ff_in_run = True
         return self.run(*args, **kwargs)
 
-    def _initialize_nodes(self):
+    def _post_initialize(self):
         pass
 
     @abstractmethod
@@ -1200,7 +1200,7 @@ class Function(metaclass=MetaFunction):
             )
 
         self._ff_initializing = True
-        self._initialize_nodes()
+        self._post_initialize()
         self._ff_initializing = False
 
     @classmethod

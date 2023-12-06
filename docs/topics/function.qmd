@@ -354,6 +354,39 @@ they don't have default value.
 
 ## Creating Function
 
+### Post-initialize function
+
+Most of the time, one doesn't need to concern with `__init__` of a Function.
+However, in case one needs to overwrite, there are 2 ways:
+
+1. Subclass `__init__` with the same signature as `Function.__init__`, and call
+   `super().__init__(*args, **kwargs)` at the top of that `__init__` method.
+2. Implement the logic in `_post_initialize()` method. This method will always
+   be called after the `__init__` method. This approach is different from the
+   previous approach in that the `_post_initialize` can be configured to be run
+   whenever some params are set or modified. The 1st approach cannot do this.
+
+Example:
+
+```python
+from theflow import Function, Param
+
+class Pipeline(Function):
+    x: int = Param(refresh_on_set=True)
+    y: float
+
+    def __init__(self, _params, /, **kwargs):
+        super().__init__()
+        self.z1 = self.x + self.y
+        self.z2 = self.x - self.y
+
+    def _post_initialize(self):
+        self.z2 = self.x - self.y
+```
+
+In the above example, `z1` will be calculated only once during `__init__`, while
+`z2` will be calculated every time `x` is set.
+
 ### Syntax shortcut to create sequential and concurrent functions
 
 `theflow` supports `>>` operator to create a sequential function, and supports a
