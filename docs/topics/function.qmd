@@ -66,7 +66,7 @@ default object to be init with specific arguments, one can use
 
 ```python
 from theflow import Function, Node, Param
-from theflow.utils.modules import ObjectInitDeclaration
+from theflow.utils.modules import lazy
 
 class Pipeline(x: Function):
 
@@ -88,18 +88,18 @@ class Pipeline(x: Function):
     # have the same effect as a1
     a2 = Param(default=1)
 
-    # default value of b1 is Obj1(), without `ObjectInitDeclaration`,
+    # default value of b1 is Obj1(), without `lazy`,
     # the default value of b1 will be just Obj1
-    b1: Obj1 = ObjectInitDeclaration(Obj1)
+    b1: Obj1 = lazy(Obj1)
 
     # have the same effect as b1
-    b2 = Param(default=ObjectInitDeclaration(Obj1))
+    b2 = Param(default=lazy(Obj1))
 
     # default value of c1 is Obj1(param1=1, param2=2)
-    c1: Obj1 = ObjectInitDeclaration(Obj1).withx(param1=1, param2=2)
+    c1: Obj1 = lazy(Obj1).withx(param1=1, param2=2)
 
     # have the same effect as c1
-    c2 = Param(default=ObjectInitDeclaration(Obj1).withx(param1=1, param2=2))
+    c2 = Param(default=lazy(Obj1).withx(param1=1, param2=2))
 ```
 
 **With `default_callback`**

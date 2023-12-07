@@ -161,7 +161,7 @@ def deserialize(
 T = TypeVar("T")
 
 
-class ObjectInitDeclaration(Generic[T]):
+class lazy(Generic[T]):
     """Declare the init parameters to initialize an object
 
     This will declare an object and initialize it later, useful to set default
@@ -169,41 +169,37 @@ class ObjectInitDeclaration(Generic[T]):
     """
 
     def __init__(self, cls: Type[T], **params):
-        self.cls: Type[T] = cls
-        self.params: dict = params
+        self._cls: Type[T] = cls
+        self._params: dict = params
 
     def __call__(self) -> T:
         """Initialize the object"""
         params = {}
-        for key, val in self.params.items():
-            if isinstance(val, ObjectInitDeclaration):
+        for key, val in self._params.items():
+            if isinstance(val, lazy):
                 params[key] = val()
             else:
                 params[key] = val
 
-        return self.cls(**params)
+        return self._cls(**params)
 
-    def withx(self, **params) -> "ObjectInitDeclaration[T]":
+    def withx(self, **params) -> "lazy[T]":
         """Continue declaring the object with additional parameters"""
-        return ObjectInitDeclaration(self.cls, **{**self.params, **params})
+        return lazy(self._cls, **{**self._params, **params})
 
     @classmethod
     def from_serialized(cls, d: dict):
-        """Convert a dict-serialized object into an ObjectInitDeclaration"""
+        """Convert a dict-serialized object into an lazy object"""
         target_cls = import_dotted_string(d.pop("__type__"), safe=False)
         for key, value in d.items():
             if isinstance(value, dict) and "__type__" in value:
                 d[key] = cls.from_serialized(value)
-        return ObjectInitDeclaration(target_cls, **d)
+        return lazy(target_cls, **d)
 
     def __persist_flow__(self) -> dict:
         """Express the object as a dict"""
         params = {}
-        for key, value in self.params.items():
-            params[key] = (
-                value.__persist_flow__()
-                if isinstance(value, ObjectInitDeclaration)
-                else value
-            )
+        for key, value in self._params.items():
+            params[key] = value.__persist_flow__() if isinstance(value, lazy) else value
 
-        return {"__type__": f"{self.cls.__module__}.{self.cls.__name__}", **params}
+        return {"__type__": f"{self._cls.__module__}.{self._cls.__name__}", **params}

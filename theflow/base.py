@@ -32,12 +32,7 @@ from .context import Context
 from .exceptions import InvalidAttrDefinition
 from .runs.base import RunTracker
 from .settings import settings
-from .utils.modules import (
-    ObjectInitDeclaration,
-    deserialize,
-    import_dotted_string,
-    serialize,
-)
+from .utils.modules import deserialize, import_dotted_string, lazy, serialize
 from .utils.pretties import unflatten_dict
 from .utils.typings import (
     input_signature,
@@ -98,7 +93,7 @@ class Attr(Generic[_Attr]):
 
     def __init__(
         self,
-        default: _Attr | ObjectInitDeclaration[_Attr] | unset_ | type = unset,
+        default: _Attr | lazy[_Attr] | unset_ | type = unset,
         *,
         default_callback: Callable[[Any], _Attr] | unset_ = unset,
         auto_callback: Callable[[Any], _Attr] | unset_ = unset,
@@ -161,7 +156,7 @@ class Attr(Generic[_Attr]):
         elif self._name in obj._attrx[self._attrx]:
             value = obj._attrx[self._attrx][self._name]
         elif self._default != unset:
-            if isinstance(self._default, ObjectInitDeclaration):
+            if isinstance(self._default, lazy):
                 value = self._default()
             else:
                 value = deepcopy(self._default)
@@ -383,7 +378,7 @@ class ParamAttr(Attr[_PAttr]):
 
     def __init__(
         self,
-        default: _PAttr | ObjectInitDeclaration[_PAttr] | unset_ = unset,
+        default: _PAttr | lazy[_PAttr] | unset_ = unset,
         *,
         default_callback: Callable[[Any], _PAttr] | unset_ = unset,
         auto_callback: Callable[[Any], _PAttr] | unset_ = unset,
@@ -544,7 +539,7 @@ class NodeAttr(Attr[_NAttr]):
 
     def __init__(
         self,
-        default: type[_NAttr] | ObjectInitDeclaration[_NAttr] | unset_ = unset,
+        default: type[_NAttr] | lazy[_NAttr] | unset_ = unset,
         *,
         default_callback: Callable[[Any], _NAttr] | unset_ = unset,
         auto_callback: Callable[[Any], _NAttr] | unset_ = unset,
@@ -556,7 +551,7 @@ class NodeAttr(Attr[_NAttr]):
         **extras,
     ):
         if inspect.isclass(default) and issubclass(default, Function):
-            default = cast(ObjectInitDeclaration, ObjectInitDeclaration(default))
+            default = cast(lazy, lazy(default))
         super().__init__(
             default=default,
             default_callback=default_callback,
@@ -682,7 +677,7 @@ class _ParamWrapper:
 
     def __call__(
         self,
-        default: _PAttr | ObjectInitDeclaration[_PAttr] | unset_ = unset,
+        default: _PAttr | lazy[_PAttr] | unset_ = unset,
         *,
         default_callback: Callable[[Any], _PAttr] | unset_ = unset,
         auto_callback: Callable[[Any], _PAttr] | unset_ = unset,
@@ -746,7 +741,7 @@ class _NodeWrapper:
 
     def __call__(
         self,
-        default: type[_NAttr] | ObjectInitDeclaration[_NAttr] | unset_ = unset,
+        default: type[_NAttr] | lazy[_NAttr] | unset_ = unset,
         *,
         default_callback: Callable[[Any], _NAttr] | unset_ = unset,
         auto_callback: Callable[[Any], _NAttr] | unset_ = unset,
@@ -1269,7 +1264,7 @@ class Function(metaclass=MetaFunction):
         Returns:
             A new Function with the supplied keywords and params set as default
         """
-        return ObjectInitDeclaration(cls, **kwargs)
+        return lazy(cls, **kwargs)
 
     def apply(self, fn: Callable):
         """Apply a function recursively to all nodes in a pipeline"""
@@ -1334,14 +1329,16 @@ class Function(metaclass=MetaFunction):
             attr_value = getattr(cls, attr)
             if isinstance(attr_value, NodeAttr):
                 value = attr_value.__persist_flow__()
-                if isinstance(
-                    attr_value._default, ObjectInitDeclaration
-                ) and issubclass(attr_value._default.cls, Function):
-                    value["default"] = attr_value._default.cls.describe()  # type:ignore
+                if isinstance(attr_value._default, lazy) and issubclass(
+                    attr_value._default._cls, Function
+                ):
+                    value[
+                        "default"
+                    ] = attr_value._default._cls.describe()  # type:ignore
                     value["default_kwargs"] = {
                         key: value
-                        for key, value in attr_value._default.params.items()
-                        if not isinstance(value, ObjectInitDeclaration)
+                        for key, value in attr_value._default._params.items()
+                        if not isinstance(value, lazy)
                     }
                 nodes[attr] = value
             elif isinstance(attr_value, ParamAttr):

@@ -1,7 +1,7 @@
 import pytest
 
 from theflow import Function, Node, Param
-from theflow.utils.modules import ObjectInitDeclaration
+from theflow.utils.modules import lazy
 
 
 class ComplexObj:
@@ -21,7 +21,7 @@ class FlowA(Function):
 
 class FlowB(Function):
     x: int
-    param_b: ComplexObj = Param(default=ObjectInitDeclaration(ComplexObj, x=20, y=30))
+    param_b: ComplexObj = Param(default=lazy(ComplexObj, x=20, y=30))
     node_b: Function = FlowA.withx(x=0)
 
     def run(self):

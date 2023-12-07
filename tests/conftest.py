@@ -15,7 +15,7 @@ def unset_theflow_settings_module(monkeypatch):
     from theflow.settings import settings
 
     yield settings
-    monkeypatch.setenv("THEFLOW_SETTINGS_MODULE", "")
+    monkeypatch.setenv("THEFLOW_SETTINGS_MODULE", "tests.assets.settings")
     theflow.settings.settings = theflow.settings.Settings()
 
 
@@ -27,5 +27,5 @@ def set_theflow_settings_module(monkeypatch):
     from theflow.settings import settings
 
     yield settings
-    monkeypatch.setenv("THEFLOW_SETTINGS_MODULE", "")
+    monkeypatch.setenv("THEFLOW_SETTINGS_MODULE", "tests.assets.settings")
     theflow.settings.settings = theflow.settings.Settings()
