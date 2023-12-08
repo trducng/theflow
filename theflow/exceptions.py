@@ -2,5 +2,9 @@ class InvalidAttrDefinition(AttributeError):
     pass
 
 
-class CycleDependencyError(Exception):
+class CyclicDependencyError(Exception):
+    pass
+
+
+class CyclicPipelineError(Exception):
     pass

@@ -29,7 +29,12 @@ except ImportError:
 
 from .config import Config, ConfigProperty, DefaultConfig
 from .context import Context
-from .exceptions import CycleDependencyError, InvalidAttrDefinition
+from .debug import likely_cyclic_pipeline
+from .exceptions import (
+    CyclicDependencyError,
+    CyclicPipelineError,
+    InvalidAttrDefinition,
+)
 from .runs.base import RunTracker
 from .settings import settings
 from .utils.modules import deserialize, import_dotted_string, lazy, serialize
@@ -153,8 +158,9 @@ class Attr(Generic[_Attr]):
 
         if not isinstance(self._auto_callback, unset_):
             if self._name in obj.__ff_cyclic_depends__:
-                raise CycleDependencyError(
-                    f"Cyclic dependency detected: {obj.__ff_cyclic_depends__}"
+                raise CyclicDependencyError(
+                    f"Cyclic dependency detected: {self._qual_name}: "
+                    f"{obj.__ff_cyclic_depends__}"
                 )
             obj.__ff_cyclic_depends__.add(self._name)
             value = self._auto_calculate_param(obj)
@@ -169,8 +175,9 @@ class Attr(Generic[_Attr]):
             value = cast(_Attr, value)
         elif not isinstance(self._default_callback, unset_):
             if self._name in obj.__ff_cyclic_depends__:
-                raise CycleDependencyError(
-                    f"Cyclic dependency detected: {obj.__ff_cyclic_depends__}"
+                raise CyclicDependencyError(
+                    f"Cyclic dependency detected: {self._qual_name}: "
+                    f"{obj.__ff_cyclic_depends__}"
                 )
             obj.__ff_cyclic_depends__.add(self._name)
             value = self._default_callback(obj)
@@ -1075,6 +1082,12 @@ class Function(metaclass=MetaFunction):
             self.set_run(_ff_run_kwargs, temp=True)
 
         if not self._ff_prefix:  # only root node has prefix as empty
+            # check validity
+            is_cyclic, evidence = likely_cyclic_pipeline(self)
+            if is_cyclic:
+                raise CyclicPipelineError(
+                    f"Potential cyclic pipeline, please check: {evidence[:5]}"
+                )
             # administrative setup
             self._ff_run_id = self.config.run_id
             self._ff_flow_name = self.config.function_name

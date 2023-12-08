@@ -2,7 +2,7 @@ import pytest
 
 from theflow import Function, Node, Param, lazy
 from theflow.debug import has_cyclic_dependency
-from theflow.exceptions import CycleDependencyError
+from theflow.exceptions import CyclicDependencyError
 
 
 class ComplexObj:
@@ -286,7 +286,7 @@ class TestCircularNodeParamDependency:
                 return self.x + self.y
 
         a = A()
-        with pytest.raises(CycleDependencyError):
+        with pytest.raises(CyclicDependencyError):
             a.x
 
     def test_has_cycle_at_runtime_multiple_hops(self):
@@ -311,7 +311,7 @@ class TestCircularNodeParamDependency:
                 return self.x + self.y + self.z
 
         a = A()
-        with pytest.raises(CycleDependencyError):
+        with pytest.raises(CyclicDependencyError):
             a.w
 
     def test_dont_raise_cycle_error_for_valid_function(self):

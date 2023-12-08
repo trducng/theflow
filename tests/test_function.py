@@ -1,6 +1,10 @@
 from unittest import TestCase
 
+import pytest
+
 from theflow import Function, Node, Param, load
+from theflow.debug import likely_cyclic_pipeline
+from theflow.exceptions import CyclicPipelineError
 
 from .assets.sample_flow import Func, Multiply, Sum1, Sum2, callback
 
@@ -183,3 +187,107 @@ class TestParam(TestCase):
         self.assertEqual(
             ExtraNodeParam.describe()["params"]["param_b"]["data3"], {"sample": 1}
         )
+
+
+class A(Function):
+    x: int = 1
+    y1: Function
+
+    def run(self, a):
+        return self.x + self.y1(a)
+
+
+class B(Function):
+    x: int = 1
+    y2: Function
+
+    def run(self, a):
+        return self.x + self.y2(a)
+
+
+class C(Function):
+    x: int = 1
+    y3: Function
+
+    def run(self, a):
+        return self.x + self.y3(a)
+
+
+class A1(Function):
+    x: int = 1
+    y: Function = Node(default_callback=lambda _: A2(x=1))
+
+    def run(self):
+        return self.x + self.y()
+
+
+class A2(Function):
+    x: int = 1
+    y: Function = Node(default_callback=lambda _: A1(x=1))
+
+    def run(self):
+        return self.x + self.y()
+
+
+class B2(Function):
+    x: int = 1
+
+    def run(self):
+        return self.x
+
+
+class TestCircularDependency:
+    """Check for analyzing circular dependency"""
+
+    def test_execute_circular_dependency_raise_error(self):
+        """Prove that the circular dependency is detected at runtime"""
+        a = A()
+        b = B()
+        c = C()
+        a.y1 = b
+        b.y2 = c
+        c.y3 = a
+        with pytest.raises(CyclicPipelineError):
+            a(12)
+
+    def test_dumping_circular_dependency_raise_error(self):
+        """Prove that the circular dependency is detected at runtime"""
+        a = A()
+        b = B()
+        c = C()
+        a.y1 = b
+        b.y2 = c
+        c.y3 = a
+        with pytest.raises(RecursionError):
+            a.dump()
+
+    def test_initiating_circular_dependency_doesnt_raise_error(self):
+        assert isinstance(A1(), A1)
+
+    def test_detect_circular_dependency_positive(self):
+        """Detect circular dependency during analysis"""
+        a = A()
+        b = B()
+        c = C()
+        a.y1 = b
+        b.y2 = c
+        c.y3 = a
+        assert likely_cyclic_pipeline(a)[0]
+        assert likely_cyclic_pipeline(b)[0]
+        assert likely_cyclic_pipeline(c)[0]
+
+    def test_detect_simple_circular_dependency_positive(self):
+        """Prove that the circular dependency is detected at runtime"""
+        a = A1()
+        assert likely_cyclic_pipeline(a)[0]
+
+    def test_detect_circular_dependency_negative(self):
+        """Detect circular dependency during analysis"""
+        a = A1()
+        b = A2()
+        c = B2()
+        a.y = b
+        b.y = c
+        assert not likely_cyclic_pipeline(a)[0]
+        assert not likely_cyclic_pipeline(b)[0]
+        assert not likely_cyclic_pipeline(c)[0]
