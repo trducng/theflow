@@ -29,7 +29,7 @@ except ImportError:
 
 from .config import Config, ConfigProperty, DefaultConfig
 from .context import Context
-from .exceptions import InvalidAttrDefinition
+from .exceptions import CycleDependencyError, InvalidAttrDefinition
 from .runs.base import RunTracker
 from .settings import settings
 from .utils.modules import deserialize, import_dotted_string, lazy, serialize
@@ -152,7 +152,13 @@ class Attr(Generic[_Attr]):
             )
 
         if not isinstance(self._auto_callback, unset_):
+            if self._name in obj.__ff_cyclic_depends__:
+                raise CycleDependencyError(
+                    f"Cyclic dependency detected: {obj.__ff_cyclic_depends__}"
+                )
+            obj.__ff_cyclic_depends__.add(self._name)
             value = self._auto_calculate_param(obj)
+            obj.__ff_cyclic_depends__.remove(self._name)
         elif self._name in obj._attrx[self._attrx]:
             value = obj._attrx[self._attrx][self._name]
         elif self._default != unset:
@@ -162,7 +168,13 @@ class Attr(Generic[_Attr]):
                 value = deepcopy(self._default)
             value = cast(_Attr, value)
         elif not isinstance(self._default_callback, unset_):
+            if self._name in obj.__ff_cyclic_depends__:
+                raise CycleDependencyError(
+                    f"Cyclic dependency detected: {obj.__ff_cyclic_depends__}"
+                )
+            obj.__ff_cyclic_depends__.add(self._name)
             value = self._default_callback(obj)
+            obj.__ff_cyclic_depends__.remove(self._name)
         else:
             raise AttributeError(
                 f"{self._attrx} {self._qual_name} is not set and has no default value"
@@ -915,12 +927,13 @@ class Function(metaclass=MetaFunction):
 
     def __init__(self, _params: dict | None = None, /, **params):
         self.last_run: RunTracker
-        self._track_child: bool = True
+        self._track_child: bool = True  # flag to track child nodes
         self._attrx: dict[str, dict[str, Any]] = {
             "NodeAttr": {},
             "ParamAttr": {},
             "AllowExtraParam": {},
         }
+        self.__ff_cyclic_depends__: set = set()
         self.__ff_depends__: dict[str, dict[str, int]] = defaultdict(dict)
         self.__ff_run_kwargs__: dict[str, Any] = {}
         self._ff_params: list[str] = []

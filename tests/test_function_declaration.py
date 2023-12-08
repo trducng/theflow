@@ -1,7 +1,8 @@
 import pytest
 
-from theflow import Function, Node, Param
-from theflow.utils.modules import lazy
+from theflow import Function, Node, Param, lazy
+from theflow.debug import has_cyclic_dependency
+from theflow.exceptions import CycleDependencyError
 
 
 class ComplexObj:
@@ -206,3 +207,131 @@ class TestParamCallback:
         # just accessing z force a recalculate
         assert flow.z == 12
         assert flow._z_call_counted == 2
+
+
+class TestCircularNodeParamDependency:
+    def test_has_cyclic_dependency_single_hop(self):
+        class A(Function):
+            @Param.auto(depends_on=["y"])
+            def x(self) -> int:
+                return self.y + 1
+
+            @Param.auto(depends_on=["x"])
+            def y(self) -> int:
+                return self.x + 1
+
+            def run(self):
+                return self.x + self.y
+
+        has_cycle = has_cyclic_dependency(A)
+        assert has_cycle
+
+    def test_has_cyclic_dependency_multiple_hops(self):
+        class A(Function):
+            @Param.auto(depends_on=["y"])
+            def x(self) -> int:
+                return self.y + 1
+
+            @Param.auto(depends_on=["z"])
+            def y(self) -> int:
+                return self.z + 1
+
+            @Param.auto(depends_on=["x"])
+            def z(self) -> int:
+                return self.x + 1
+
+            @Param.auto(depends_on=["y"])
+            def w(self) -> int:
+                return self.y + 1
+
+            def run(self):
+                return self.x + self.y + self.z
+
+        has_cycle = has_cyclic_dependency(A)
+        assert has_cycle
+
+    def test_dont_has_cyclic_dependency(self):
+        class A(Function):
+            w: int
+
+            @Param.auto(depends_on=["y"])
+            def x(self) -> int:
+                return self.y + 1
+
+            @Param.auto(depends_on=["z"])
+            def y(self) -> int:
+                return self.z + 1
+
+            @Param.auto(depends_on=["w"])
+            def z(self) -> int:
+                return self.w + 1
+
+            def run(self):
+                return self.x + self.y + self.z
+
+        has_cycle = has_cyclic_dependency(A)
+        assert not has_cycle
+
+    def test_has_cycle_at_runtime_single_hop(self):
+        class A(Function):
+            @Param.auto(depends_on=["y"])
+            def x(self) -> int:
+                return self.y + 1
+
+            @Param.auto(depends_on=["x"])
+            def y(self) -> int:
+                return self.x + 1
+
+            def run(self):
+                return self.x + self.y
+
+        a = A()
+        with pytest.raises(CycleDependencyError):
+            a.x
+
+    def test_has_cycle_at_runtime_multiple_hops(self):
+        class A(Function):
+            @Param.auto(depends_on=["y"])
+            def x(self) -> int:
+                return self.y + 1
+
+            @Param.auto(depends_on=["z"])
+            def y(self) -> int:
+                return self.z + 1
+
+            @Param.auto(depends_on=["x"])
+            def z(self) -> int:
+                return self.x + 1
+
+            @Param.auto(depends_on=["y"])
+            def w(self) -> int:
+                return self.y + 1
+
+            def run(self):
+                return self.x + self.y + self.z
+
+        a = A()
+        with pytest.raises(CycleDependencyError):
+            a.w
+
+    def test_dont_raise_cycle_error_for_valid_function(self):
+        class A(Function):
+            w: int
+
+            @Param.auto(depends_on=["y"])
+            def x(self) -> int:
+                return self.y + 1
+
+            @Param.auto(depends_on=["z"])
+            def y(self) -> int:
+                return self.z + 1
+
+            @Param.auto(depends_on=["w"])
+            def z(self) -> int:
+                return self.w + 1
+
+            def run(self):
+                return self.x + self.y + self.z
+
+        a = A(w=20)
+        assert a.x == 23
