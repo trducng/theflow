@@ -135,7 +135,11 @@ class TrackProgressMiddleware(Middleware):
             self.obj.last_run = last_run
 
         _input = {"args": args, "kwargs": kwargs}
-        _output = self.next_call(*args, **kwargs)
+        try:
+            _output = self.next_call(*args, **kwargs)
+        except Exception as e:
+            self.obj.log_progress(abs_pathx, input=_input, output=None, error=str(e))
+            raise e from None
         self.obj.log_progress(abs_pathx, input=_input, output=_output)
 
         if abs_pathx == ".":

@@ -79,6 +79,8 @@ def likely_cyclic_pipeline(a: "Function", max_node_connections: int = 100):
         to_do = to_dos[to_do_idx]
         for node in to_do._ff_nodes:
             target = getattr(to_do, node)
+            if not target:
+                continue
             to_dos.append(target)
             triples = (
                 f"{to_do.__module__}.{to_do.__class__.__name__}",

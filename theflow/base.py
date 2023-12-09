@@ -183,9 +183,7 @@ class Attr(Generic[_Attr]):
             value = self._default_callback(obj)
             obj.__ff_cyclic_depends__.remove(self._name)
         else:
-            raise AttributeError(
-                f"{self._attrx} {self._qual_name} is not set and has no default value"
-            )
+            return unset  # type: ignore
 
         obj._attrx[self._attrx][self._name] = value
         return value
@@ -456,22 +454,21 @@ class ParamAttr(Attr[_PAttr]):
         if obj is None:
             return self
 
-        try:
-            return super().__get__(obj, _)
-        except AttributeError as e:
+        value = super().__get__(obj, _)
+        if value == unset:
             if obj.config.params_subscribe and obj._ff_prefix:
                 context = f"{obj.flow_qualidx()}|published_params"
-                if not obj.context.has_context(context):
-                    raise e
-                value = obj.context.get(
-                    name=self._name,
-                    default=unset,
-                    context=context,
-                )
-                if value != unset:
-                    obj._attrx[self._attrx][self._name] = value
-                    return value
-            raise e
+                if obj.context.has_context(context):
+                    value = obj.context.get(
+                        name=self._name,
+                        default=unset,
+                        context=context,
+                    )
+
+        if value != unset:
+            obj._attrx[self._attrx][self._name] = value
+
+        return value
 
     @classmethod
     def auto(
@@ -601,8 +598,11 @@ class NodeAttr(Attr[_NAttr]):
         ...
 
     def __get__(self, obj: Function | None, _: type[Function] | None = None):
+        if obj is None:
+            return self
+
         value = super().__get__(obj, _)
-        if obj:
+        if obj and value:
             value = cast(_NAttr, value)
             obj._prepare_child(value, self._name)
             if not isinstance(value, Function):
@@ -1083,8 +1083,8 @@ class Function(metaclass=MetaFunction):
 
         if not self._ff_prefix:  # only root node has prefix as empty
             # check validity
-            is_cyclic, evidence = likely_cyclic_pipeline(self)
-            if is_cyclic:
+            has_cycle, evidence = likely_cyclic_pipeline(self)
+            if has_cycle:
                 raise CyclicPipelineError(
                     f"Potential cyclic pipeline, please check: {evidence[:5]}"
                 )

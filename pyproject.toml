@@ -3,7 +3,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-version = "0.8.0"
+version = "0.8.1"
 name = "theflow"
 authors = [{ name = "trducng", email = "trungduc1992@gmail.com" }]
 description = "A simple framework to build and run flows"

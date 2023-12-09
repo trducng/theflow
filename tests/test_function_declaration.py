@@ -1,6 +1,6 @@
 import pytest
 
-from theflow import Function, Node, Param, lazy
+from theflow import Function, Node, Param, lazy, unset
 from theflow.debug import has_cyclic_dependency
 from theflow.exceptions import CyclicDependencyError
 
@@ -65,9 +65,7 @@ def test_default_node_param():
     flowc2 = FlowC2(x=2)
     assert flowc2.x == 2
     assert isinstance(flowc2.node_c, FlowB)
-    with pytest.raises(AttributeError):
-        # FlowB doesn't have default x
-        flowc2.node_c.x
+    assert flowc2.node_c.x == unset
     assert flowc2.node_c.node_b.x == 0
     assert flowc2.node_c.param_b.x == 20
     assert isinstance(flowc2.node_c.param_b, ComplexObj)
