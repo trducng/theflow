@@ -996,7 +996,7 @@ class Function(metaclass=MetaFunction):
         self._ff_flow_name: str = ""  # the run name
         self._ff_childs_called: dict = {}  # only available for root
 
-    def __rshift__(self, other: Function) -> SequentialFunction:
+    def __rshift__(self, other: Function) -> Any:
         """Return a sequential function"""
         if isinstance(other, SequentialFunction):
             return SequentialFunction(funcs=[self, *other.funcs])
@@ -1008,7 +1008,7 @@ class Function(metaclass=MetaFunction):
             )
         return SequentialFunction(funcs=[self, other])
 
-    def __floordiv__(self, other: Function) -> ConcurrentFunction:
+    def __floordiv__(self, other: Function) -> Any:
         """Return a sequential function"""
         if isinstance(other, ConcurrentFunction):
             return ConcurrentFunction(funcs=[self, *other.funcs])
@@ -1700,11 +1700,23 @@ class SequentialFunction(Function):
     def __getitem__(self, idx):
         return self.funcs[idx]
 
-    def run(self, arg):
+    def __str__(self):
+        """Represent hierarchical structure of the Function"""
+        kwargs = []
+        for idx, func in enumerate(self.funcs):
+            value = str(func)
+            value = value.replace("\n", "\n  ")
+            kwargs.append(f"  ({idx}): {value}")
+        kwargs_repr = "\n".join(kwargs)
+        return f"{self.__class__.__name__}(\n{kwargs_repr}\n)"
+
+    def run(self, *arg, **kwargs):
+        out = arg
         for idx, func in enumerate(self.funcs):
             self._prepare_child(func, f"func{idx}_{func.__class__.__name__}")
-            arg = func(arg)
-        return arg
+            out = func(*arg, **kwargs)
+            arg = out if len(arg) > 1 else (out,)
+        return out
 
 
 class ConcurrentFunction(Function):
@@ -1717,6 +1729,16 @@ class ConcurrentFunction(Function):
 
     def __getitem__(self, idx):
         return self.funcs[idx]
+
+    def __str__(self):
+        """Represent hierarchical structure of the Function"""
+        kwargs = []
+        for idx, func in enumerate(self.funcs):
+            value = str(func)
+            value = value.replace("\n", "\n  ")
+            kwargs.append(f"  ({idx}): {value}")
+        kwargs_repr = "\n".join(kwargs)
+        return f"{self.__class__.__name__}(\n{kwargs_repr}\n)"
 
     def run(self, arg):
         output = []
