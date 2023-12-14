@@ -81,6 +81,10 @@ def serialize(value: Any) -> Any:
             raise ValueError("Cannot serialize lambda functions")
         return f"{{{{ {value.__module__}.{value.__name__} }}}}"
 
+    if hasattr(value, "__persist_flow__"):
+        d = value.__persist_flow__()
+        return d
+
     for base in value.__class__.mro()[:-1]:
         if base in SERIALIZE_BY_TYPES:
             return SERIALIZE_BY_TYPES[base](value)
@@ -97,11 +101,6 @@ def serialize(value: Any) -> Any:
         else:
             raise ValueError(f"Cannot serialize {value}. Unknown name")
         return f"{{{{ {value.__module__}.{name} }}}}"
-
-    if hasattr(value, "__persist_flow__"):
-        d = value.__persist_flow__()
-        d["__type__"] = f"{value.__class__.__module__}.{value.__class__.__name__}"
-        return d
 
     raise ValueError(
         f"Cannot serialize {value}. Consider implementing __persist_flow__"
@@ -203,3 +202,49 @@ class lazy(Generic[T]):
             params[key] = value.__persist_flow__() if isinstance(value, lazy) else value
 
         return {"__type__": f"{self._cls.__module__}.{self._cls.__name__}", **params}
+
+    def __rshift__(self, other: "lazy[T]") -> Any:
+        """Chain two lazy objects together"""
+        from theflow.base import Function, SequentialFunction
+
+        if not isinstance(other, lazy):
+            raise ValueError(f"Cannot chain lazy and non-lazy objects: {other}")
+
+        if not issubclass(other._cls, Function) or not issubclass(self._cls, Function):
+            raise ValueError("Can only chain lazy Function")
+
+        funcs = []
+        if issubclass(self._cls, SequentialFunction):
+            funcs.extend(self._params.get("funcs", []))
+        else:
+            funcs.append(self)
+
+        if issubclass(other._cls, SequentialFunction):
+            funcs.extend(other._params.get("funcs", []))
+        else:
+            funcs.append(other)
+
+        return lazy(SequentialFunction, funcs=funcs)
+
+    def __floordiv__(self, other: "lazy[T]") -> Any:
+        """Chain two lazy objects together"""
+        from theflow.base import ConcurrentFunction, Function
+
+        if not isinstance(other, lazy):
+            raise ValueError(f"Cannot chain lazy and non-lazy objects: {other}")
+
+        if not issubclass(other._cls, Function) or not issubclass(self._cls, Function):
+            raise ValueError("Can only chain lazy Function")
+
+        funcs = []
+        if issubclass(self._cls, ConcurrentFunction):
+            funcs.extend(self._params.get("funcs", []))
+        else:
+            funcs.append(self)
+
+        if issubclass(other._cls, ConcurrentFunction):
+            funcs.extend(other._params.get("funcs", []))
+        else:
+            funcs.append(other)
+
+        return lazy(ConcurrentFunction, funcs=funcs)

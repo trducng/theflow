@@ -109,6 +109,24 @@ def test_mixed_sequential_concurrent_function_complex():
     )
 
 
+class FunctionA(Function):
+    def run(self, x):
+        return x + 1
+
+
+class FunctionB(Function):
+    seq: FunctionA = FunctionA.withx() >> FunctionA.withx()
+    con: FunctionA = FunctionA.withx() // FunctionA.withx()
+
+    def run(self, x):
+        return self.seq(x) + sum(self.con(x)) + 1
+
+
+def test_valid_default_sequential_and_concurrent_function():
+    flow = FunctionB()
+    assert flow(1) == 8, "Should initiate default sequential and concurrent function"
+
+
 class DuplicateNodeCall(Function):
     increment_by: Function = IncrementBy.withx(x=1)
 

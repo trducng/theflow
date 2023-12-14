@@ -216,7 +216,9 @@ class Attr(Generic[_Attr]):
 
     def __persist_flow__(self):
         """Return the state in a way that can be initiated"""
-        export = {}
+        export = {
+            "__type__": f"{self.__module__}.{self.__class__.__qualname__}",
+        }
         for key, value in self.to_dict().items():
             try:
                 serialized = serialize(value)
@@ -1704,7 +1706,7 @@ class SequentialFunction(Function):
         """Represent hierarchical structure of the Function"""
         kwargs = []
         for idx, func in enumerate(self.funcs):
-            value = str(func)
+            value = str(func() if isinstance(func, lazy) else func)
             value = value.replace("\n", "\n  ")
             kwargs.append(f"  ({idx}): {value}")
         kwargs_repr = "\n".join(kwargs)
@@ -1713,8 +1715,9 @@ class SequentialFunction(Function):
     def run(self, *arg, **kwargs):
         out = arg
         for idx, func in enumerate(self.funcs):
-            self._prepare_child(func, f"func{idx}_{func.__class__.__name__}")
-            out = func(*arg, **kwargs)
+            func_: Function = func() if isinstance(func, lazy) else func
+            self._prepare_child(func_, f"func{idx}_{func_.__class__.__name__}")
+            out = func_(*arg, **kwargs)
             arg = out if len(arg) > 1 else (out,)
         return out
 
@@ -1743,6 +1746,7 @@ class ConcurrentFunction(Function):
     def run(self, arg):
         output = []
         for idx, func in enumerate(self.funcs):
-            self._prepare_child(func, f"func{idx}_{func.__class__.__name__}")
-            output.append(func(arg))
+            func_: Function = func() if isinstance(func, lazy) else func
+            self._prepare_child(func_, f"func{idx}_{func_.__class__.__name__}")
+            output.append(func_(arg))
         return output
