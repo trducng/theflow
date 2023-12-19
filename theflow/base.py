@@ -27,6 +27,7 @@ try:
 except ImportError:
     _generic_alias_types = (_GenericAlias,)
 
+from .backends.base import Backend
 from .config import Config, ConfigProperty, DefaultConfig
 from .context import Context
 from .debug import likely_cyclic_pipeline
@@ -78,6 +79,7 @@ unset = unset_()
 _Attr = TypeVar("_Attr")
 _PAttr = TypeVar("_PAttr")
 _NAttr = TypeVar("_NAttr", bound="Function")
+_F = TypeVar("_F", bound="Function")
 
 
 class Attr(Generic[_Attr]):
@@ -458,8 +460,8 @@ class ParamAttr(Attr[_PAttr]):
 
         value = super().__get__(obj, _)
         if value == unset:
-            if obj.config.params_subscribe and obj._ff_prefix:
-                context = f"{obj.flow_qualidx()}|published_params"
+            if obj.config.params_subscribe and obj.fl.prefix:
+                context = f"{obj.fl.flow_qualidx}|published_params"
                 if obj.context.has_context(context):
                     value = obj.context.get(
                         name=self._name,
@@ -606,10 +608,8 @@ class NodeAttr(Attr[_NAttr]):
         value = super().__get__(obj, _)
         if obj and value:
             value = cast(_NAttr, value)
-            obj._prepare_child(value, self._name)
-            if not isinstance(value, Function):
-                raise ValueError(f"Node {obj.__class__}.{self._name} is not a Function")
-            return value
+            value = obj._prepare_child(value, self._name)
+
         return value
 
     @classmethod
@@ -907,31 +907,26 @@ class Function(metaclass=MetaFunction):
 
     _keywords = [
         "Config",
-        "abs_pathx",
         "apply",
         "config",
         "context",
         "describe",
         "dump",
-        "flow_qualidx",
         "get_from_path",
         "getx",
-        "idx",
         "is_compatible",
         "last_run",
         "log_progress",
         "missing",
-        "namex",
         "nodes",
         "params",
-        "parent_qualidx",
-        "qualidx",
         "run",
         "set",
         "set_run",
         "specs",
         "visualize",
         "withx",
+        "fl",
     ]
 
     def __init__(self, _params: dict | None = None, /, **params):
@@ -982,6 +977,7 @@ class Function(metaclass=MetaFunction):
                 next_call = cls(obj=self, next_call=next_call)
             self._middleware = next_call
 
+        self.fl = Backend()  # TODO: select the right backend
         if not hasattr(self, "_ff_initializing"):
             # TODO: this work better if we formulate config and context as independent
             self._initialize()
@@ -991,11 +987,6 @@ class Function(metaclass=MetaFunction):
         execution finishes
         """
         self.__ff_run_temp_kwargs__: dict[str, Any] = {}  # temp run kwargs
-        self._ff_in_run: bool = False  # whether the pipeline is in the run process
-        self._ff_prefix: str = ""  # only root node has prefix as empty ""
-        self._ff_name: str = ""  # only root node has name as empty ""
-        self._ff_run_id: str = ""  # the current run id
-        self._ff_flow_name: str = ""  # the run name
         self._ff_childs_called: dict = {}  # only available for root
 
     def __rshift__(self, other: Function) -> Any:
@@ -1022,47 +1013,9 @@ class Function(metaclass=MetaFunction):
             )
         return ConcurrentFunction(funcs=[self, other])
 
-    def abs_pathx(self) -> str:
-        """Get the node absolute path in execution flow.
-
-        Note: only available during execution
-
-        Path to node is similar to path to folder:
-            .: root node
-            .a: to node a
-            .a.a1.a2: travel from root node to node a2
-
-        Returns:
-            str: absolute path of the node
-        """
-        if self._ff_prefix == ".":
-            return f".{self._ff_name}"
-
-        return f"{self._ff_prefix}.{self._ff_name}"
-
-    def namex(self) -> str:
-        """Name of the execution flow"""
-        return self._ff_flow_name
-
-    def idx(self) -> str:
-        """Return execution id"""
-        return self._ff_run_id
-
-    def qualidx(self) -> str:
-        """Return the qualified execution ids for this node"""
-        return f"{self.namex()}|{self.idx()}|{self.abs_pathx()}"
-
-    def parent_qualidx(self) -> str:
-        """Return the qualified execution ids for the parent node"""
-        return f"{self.namex()}|{self.idx()}|{self._ff_prefix}"
-
-    def flow_qualidx(self):
-        """Return the qualified execution flow id"""
-        return f"{self.namex()}|{self.idx()}"
-
     def _runx(self, *args, **kwargs):
         """Subclass to handle pre- and post- run"""
-        self._ff_in_run = True
+        self.fl.in_run = True
         return self.run(*args, **kwargs)
 
     def _post_initialize(self):
@@ -1074,6 +1027,15 @@ class Function(metaclass=MetaFunction):
 
     def __call__(self, *args, **kwargs):
         """Run the flow, accepting extra parameters for routing purpose"""
+        # might not need to pop __fl_runstates__, because it can be used by other
+        # operations of the Backend.
+        _tfrs = kwargs.pop("__fl_runstates__", {})
+        if _tfrs:
+            self.fl.track(**_tfrs)
+            context = _tfrs.get("context", None)
+            if context:
+                self.context = context
+
         if not hasattr(self, "_ff_initializing"):
             self._initialize()
 
@@ -1083,7 +1045,7 @@ class Function(metaclass=MetaFunction):
             # child nodes.
             self.set_run(_ff_run_kwargs, temp=True)
 
-        if not self._ff_prefix:  # only root node has prefix as empty
+        if not self.fl.prefix:  # only root node has prefix as empty
             # check validity
             has_cycle, evidence = likely_cyclic_pipeline(self)
             if has_cycle:
@@ -1091,30 +1053,30 @@ class Function(metaclass=MetaFunction):
                     f"Potential cyclic pipeline, please check: {evidence[:5]}"
                 )
             # administrative setup
-            self._ff_run_id = self.config.run_id
-            self._ff_flow_name = self.config.function_name
-            self.context.create_context(context=self.flow_qualidx())
-            self.context.set("run_id", self._ff_run_id, context=self.flow_qualidx())
+            self.fl.run_id = self.config.run_id
+            self.fl.flow_name = self.config.function_name
+            self.context.create_context(context=self.fl.flow_qualidx)
+            self.context.set("run_id", self.fl.run_id, context=self.fl.flow_qualidx)
 
             # publish parameters to the shared cache
             if self.config.params_publish:
                 self.context.create_context(
-                    context=f"{self.flow_qualidx()}|published_params",
+                    context=f"{self.fl.flow_qualidx}|published_params",
                 )
                 for k, v in self.params.items():
                     self.context.set(
                         name=k,
                         value=v,
-                        context=f"{self.flow_qualidx()}|published_params",
+                        context=f"{self.fl.flow_qualidx}|published_params",
                     )
                 for k, v in self._attrx["AllowExtraParam"].items():
                     self.context.set(
                         name=k,
                         value=v,
-                        context=f"{self.flow_qualidx()}|published_params",
+                        context=f"{self.fl.flow_qualidx}|published_params",
                     )
 
-        self.context.create_context(context=self.qualidx(), exist_ok=True)
+        self.context.create_context(context=self.fl.qualidx, exist_ok=True)
 
         if self.__ff_run_kwargs__:
             kwargs.update(self.__ff_run_kwargs__)
@@ -1129,16 +1091,17 @@ class Function(metaclass=MetaFunction):
                 else self._runx(*args, **kwargs)
             )
 
-            if not self._ff_prefix:  # only root node has prefix as empty
+            if not self.fl.prefix:  # only root node has prefix as empty
                 if self.config.params_publish:
                     self.context.clear(
                         None,
-                        context=f"{self.flow_qualidx()}|published_params",
+                        context=f"{self.fl.flow_qualidx}|published_params",
                     )
         except Exception as e:
             raise e from None
         finally:
             self._variablex()
+            self.fl.clear()
 
         return output
 
@@ -1261,18 +1224,33 @@ class Function(metaclass=MetaFunction):
     def _make_composable(self, value) -> Function:
         return ProxyFunction(ff_original_obj=value)
 
-    def _prepare_child(self, child: Function, name: str):
-        if self._ff_in_run and self._track_child:
-            child._ff_prefix = self.abs_pathx()
-            child._ff_name = (
-                name
-                if name not in self._ff_childs_called
-                else f"{name}[{self._ff_childs_called[name]}]"
-            )
-            child._ff_run_id = self._ff_run_id
-            child._ff_flow_name = self._ff_flow_name
+    def _prepare_child(self, child: _F, name: str) -> _F:
+        """Prepare child node to enable tracking and routing"""
+        if not hasattr(self, "fl"):
+            return child
+
+        if not self.fl.in_run:
+            return child
+
+        if not self._track_child:
+            return child
+
+        def exec(*args, **kwargs):
+            __fl_runstates__ = {
+                "prefix": self.fl.abs_path,
+                "name": (
+                    name
+                    if name not in self._ff_childs_called
+                    else f"{name}[{self._ff_childs_called[name]}]"
+                ),
+                "run_id": self.fl.run_id,
+                "flow_name": self.fl.flow_name,
+                "context": self.context,
+            }
             self._ff_childs_called[name] = self._ff_childs_called.get(name, 0) + 1
-            child.context = self.context
+            return child(*args, **kwargs, __fl_runstates__=__fl_runstates__)
+
+        return exec  # type: ignore
 
     @classmethod
     def visualize(cls):
@@ -1391,7 +1369,7 @@ class Function(metaclass=MetaFunction):
         nodes: dict = {}
         for node in self._ff_nodes:
             try:
-                obj: Function = getattr(self, node)
+                obj: Function = self.get_from_path(node)
                 if self.specs(node).get("auto_callback", unset) and ignore_auto:
                     continue
                 nodes[node] = obj.dump(ignore_auto=ignore_auto, strict=strict)
@@ -1544,7 +1522,7 @@ class Function(metaclass=MetaFunction):
     def log_progress(self, name: str | None = None, **kwargs):
         """Log the progress to the name"""
         if name is None:
-            name = self.abs_pathx()
+            name = self.fl.abs_path
 
         run_tracker = RunTracker(self)
         run_tracker.log_progress(name, **kwargs)
@@ -1582,14 +1560,14 @@ class SessionFunction(Function):
         if not hasattr(self, "_ff_initializing"):
             self._initialize()
 
-        if not self._ff_prefix:  # only root node has prefix as empty
+        if not self.fl.prefix:  # only root node has prefix as empty
             # administrative setup
-            self._ff_run_id = self.config.run_id
-            self._ff_flow_name: str = self.config.function_name
-            self.context.create_context(context=self.flow_qualidx())
-            self.context.set("run_id", self._ff_run_id, context=self.flow_qualidx())
+            self.fl.run_id = self.config.run_id
+            self.fl.flow_name = self.config.function_name
+            self.context.create_context(context=self.fl.flow_qualidx)
+            self.context.set("run_id", self.fl.run_id, context=self.fl.flow_qualidx)
 
-        self.context.create_context(context=self.qualidx(), exist_ok=True)
+        self.context.create_context(context=self.fl.qualidx, exist_ok=True)
 
     def __call__(self, *args, **kwargs):
         if _ff_run_kwargs := kwargs.pop("_ff_run_kwargs", {}):
@@ -1614,6 +1592,7 @@ class SessionFunction(Function):
 
     def end_session(self):
         self._variablex()
+        self.fl.clear()
 
 
 class ProxyFunction(Function):
@@ -1639,11 +1618,6 @@ class ProxyFunction(Function):
             )
 
     def _create_callable(self, callable_obj):
-        def wrapper(*args, **kwargs):
-            # TODO: after remove _ff_name from kwargs, we might be able to remove this
-            # wrapper
-            return callable_obj(*args, **kwargs)
-
         middleware_section: str = self.config.middleware_section
         middleware_setting = settings.MIDDLEWARE
         if middleware_section not in middleware_setting:
@@ -1653,13 +1627,30 @@ class ProxyFunction(Function):
         middleware_switches = self.config.middleware_switches
 
         if middlware_cfg := middleware_setting[middleware_section]:
-            next_call = wrapper
+            next_call = callable_obj
             for cls_name in reversed(middlware_cfg):
                 if not middleware_switches.get(cls_name, True):
                     continue
                 cls = import_dotted_string(cls_name, safe=False)
                 next_call = cls(obj=self, next_call=next_call)
-            return next_call
+            callable_obj = next_call
+
+        def wrapper(*args, **kwargs):
+            _tfrs = kwargs.pop("__fl_runstates__", {})
+            if _tfrs:
+                self.fl.track(**_tfrs)
+                context = _tfrs.get("context", None)
+                if context:
+                    self.context = context
+
+            try:
+                output = callable_obj(*args, **kwargs)
+            except Exception as e:
+                raise e from None
+            finally:
+                self.fl.clear()
+
+            return output
 
         return wrapper
 
@@ -1716,7 +1707,7 @@ class SequentialFunction(Function):
         out = arg
         for idx, func in enumerate(self.funcs):
             func_: Function = func() if isinstance(func, lazy) else func
-            self._prepare_child(func_, f"func{idx}_{func_.__class__.__name__}")
+            func_ = self._prepare_child(func_, f"func{idx}_{func_.__class__.__name__}")
             out = func_(*arg, **kwargs)
             arg = out if len(arg) > 1 else (out,)
         return out
@@ -1747,6 +1738,6 @@ class ConcurrentFunction(Function):
         output = []
         for idx, func in enumerate(self.funcs):
             func_: Function = func() if isinstance(func, lazy) else func
-            self._prepare_child(func_, f"func{idx}_{func_.__class__.__name__}")
+            func_ = self._prepare_child(func_, f"func{idx}_{func_.__class__.__name__}")
             output.append(func_(arg))
         return output

@@ -60,37 +60,37 @@ class SkipComponentMiddleware(Middleware):
 
         # Gather the from, to and from_run from the root pipeline
         if _ff_from := kwargs.pop("_ff_from", None):
-            self.obj.context.set("from", _ff_from, context=self.obj.flow_qualidx())
+            self.obj.context.set("from", _ff_from, context=self.obj.fl.flow_qualidx)
         if _ff_to := kwargs.pop("_ff_to", None):
-            self.obj.context.set("to", _ff_to, context=self.obj.flow_qualidx())
+            self.obj.context.set("to", _ff_to, context=self.obj.fl.flow_qualidx)
         if _ff_from_run := kwargs.pop("_ff_from_run", None):
             from_run = RunTracker(self.obj, "__from_run__")
             from_run.load(run_path=_ff_from_run)
 
-        self.obj.context.get("from", context=self.obj.flow_qualidx())
-        if _from := self.obj.context.get("from", context=self.obj.flow_qualidx()):
+        self.obj.context.get("from", context=self.obj.fl.flow_qualidx)
+        if _from := self.obj.context.get("from", context=self.obj.fl.flow_qualidx):
             from .utils.paths import is_parent_of_child
 
-            if is_parent_of_child(self.obj._ff_name, _from):
-                self.obj.context.set("good_to_run", False, context=self.obj.qualidx())
+            if is_parent_of_child(self.obj.fl.name, _from):
+                self.obj.context.set("good_to_run", False, context=self.obj.fl.qualidx)
 
         # Decide whether to run or fetch from the cache
-        _ff_name = self.obj.abs_pathx()
+        _ff_name = self.obj.fl.abs_path
 
         good_to_run: bool = True
-        if self.obj.context.has_context(context=self.obj.parent_qualidx()):
+        if self.obj.context.has_context(context=self.obj.fl.parent_qualidx):
             good_to_run = self.obj.context.get(
-                "good_to_run", default=True, context=self.obj.parent_qualidx()
+                "good_to_run", default=True, context=self.obj.fl.parent_qualidx
             )
 
         if good_to_run is False:
             from .utils.paths import is_name_matched
 
             if is_name_matched(
-                _ff_name, self.obj.context.get("from", context=self.obj.flow_qualidx())
+                _ff_name, self.obj.context.get("from", context=self.obj.fl.flow_qualidx)
             ):
                 self.obj.context.set(
-                    "good_to_run", True, context=self.obj.parent_qualidx()
+                    "good_to_run", True, context=self.obj.fl.parent_qualidx
                 )
                 logger.info(f"Run {_ff_name}. Turn good_to_run from False to True")
                 self.obj.log_progress(_ff_name, status="run")
@@ -108,10 +108,10 @@ class SkipComponentMiddleware(Middleware):
                 return self.next_call(*args, **kwargs)
 
         if (
-            self.obj.context.get("to", None, context=self.obj.flow_qualidx())
+            self.obj.context.get("to", None, context=self.obj.fl.flow_qualidx)
             == _ff_name
         ):
-            self.obj.context.set("good_to_run", False, context=self.obj.flow_qualidx())
+            self.obj.context.set("good_to_run", False, context=self.obj.fl.flow_qualidx)
 
         self.obj.log_progress(_ff_name, status="run")
         return self.next_call(*args, **kwargs)
@@ -126,7 +126,7 @@ class TrackProgressMiddleware(Middleware):
     """
 
     def __call__(self, *args, **kwargs):
-        abs_pathx = self.obj.abs_pathx()
+        abs_pathx = self.obj.fl.abs_path
         if abs_pathx == ".":
             from .runs.base import RunTracker
 

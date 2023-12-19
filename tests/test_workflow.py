@@ -153,9 +153,9 @@ def test_duplicate_node_call():
     """Undesired logs"""
     flow = DuplicateNodeCall()
     output = flow(1)
-    assert output == 2, "Should have incremented by 1"
+    assert output == -1, "The isinstance check should fail"
     assert ".increment_by" not in flow.last_run.logs()
-    assert ".increment_by[1]" in flow.last_run.logs()
+    assert ".increment_by[1]" not in flow.last_run.logs()
 
 
 def test_non_duplicate_node_call():

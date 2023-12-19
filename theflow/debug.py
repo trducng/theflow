@@ -78,7 +78,7 @@ def likely_cyclic_pipeline(a: "Function", max_node_connections: int = 100):
     while threshold_idx < max_node_connections and to_do_idx < len(to_dos):
         to_do = to_dos[to_do_idx]
         for node in to_do._ff_nodes:
-            target = getattr(to_do, node)
+            target = to_do.get_from_path(node)
             if not target:
                 continue
             to_dos.append(target)

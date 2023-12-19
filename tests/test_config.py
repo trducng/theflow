@@ -35,13 +35,13 @@ class RootFunction(Function):
 
     def _runx(self, *args, **kwargs):
         """Intervene to not delete the shared params for testing purpose"""
-        self._ff_in_run = True
+        self.fl.in_run = True
         shared_params = kwargs.pop("shared_params")
         out = self.run(*args, **kwargs)
         shared_params.update(
             self.context.get(
                 None,
-                context=f"{self.flow_qualidx()}|published_params",
+                context=f"{self.fl.flow_qualidx}|published_params",
             )
         )
         return out

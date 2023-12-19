@@ -85,13 +85,13 @@ class RunTracker:
         self._context: Context = obj.context
 
         self._config: dict = {}
-        self._progress = f"{obj.namex()}|{obj.idx()}|{which_progress}"
+        self._progress = f"{obj.fl.flow_name}|{obj.fl.run_id}|{which_progress}"
         self._context.create_context(self._progress, exist_ok=True)
 
-        if not obj._ff_prefix:
+        if not obj.fl.prefix:
             # root pipeline
-            self._context.set("name", obj.namex(), context=self._progress)
-            self._context.set("id", obj.idx(), context=self._progress)
+            self._context.set("name", obj.fl.flow_name, context=self._progress)
+            self._context.set("id", obj.fl.run_id, context=self._progress)
 
     def log_progress(self, name: str, **kwargs):
         """Set the input and output of the step
