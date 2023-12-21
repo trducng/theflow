@@ -1032,9 +1032,6 @@ class Function(metaclass=MetaFunction):
         _tfrs = kwargs.pop("__fl_runstates__", {})
         if _tfrs:
             self.fl.track(**_tfrs)
-            context = _tfrs.get("context", None)
-            if context:
-                self.context = context
 
         if not hasattr(self, "_ff_initializing"):
             self._initialize()
@@ -1085,11 +1082,8 @@ class Function(metaclass=MetaFunction):
             kwargs.update(self.__ff_run_temp_kwargs__)
 
         try:
-            output = (
-                self._middleware(*args, **kwargs)
-                if self._middleware
-                else self._runx(*args, **kwargs)
-            )
+            func = self._middleware if self._middleware else self._runx
+            output = self.fl.exec(func, *args, **kwargs)
 
             if not self.fl.prefix:  # only root node has prefix as empty
                 if self.config.params_publish:
@@ -1136,9 +1130,6 @@ class Function(metaclass=MetaFunction):
 
     def _set_context(self, context: Context) -> None:
         self._ff_context = context
-        for node in self._ff_nodes:
-            if isinstance(getattr(self, node), Function):
-                getattr(self, node).context = context
 
     def _del_context(self) -> None:
         del self._ff_context
@@ -1245,7 +1236,6 @@ class Function(metaclass=MetaFunction):
                 ),
                 "run_id": self.fl.run_id,
                 "flow_name": self.fl.flow_name,
-                "context": self.context,
             }
             self._ff_childs_called[name] = self._ff_childs_called.get(name, 0) + 1
             return child(*args, **kwargs, __fl_runstates__=__fl_runstates__)
@@ -1639,9 +1629,6 @@ class ProxyFunction(Function):
             _tfrs = kwargs.pop("__fl_runstates__", {})
             if _tfrs:
                 self.fl.track(**_tfrs)
-                context = _tfrs.get("context", None)
-                if context:
-                    self.context = context
 
             try:
                 output = callable_obj(*args, **kwargs)

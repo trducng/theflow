@@ -140,3 +140,7 @@ class Backend:
         self._ff_name.pop(ident, None)
         self._ff_run_id.pop(ident, None)
         self._ff_flow_name.pop(ident, None)
+
+    def exec(self, func, *args, **kwargs):
+        """Execute the pipeline's run"""
+        return func(*args, **kwargs)
