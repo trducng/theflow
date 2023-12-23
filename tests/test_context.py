@@ -8,6 +8,13 @@ class X:
         self.x = 10
 
 
+def run(context):
+    context.set("a", 1)
+    context.set("b", 2)
+    context.set("c", 3)
+    context.set("d", X())
+
+
 class TestContext(TestCase):
     def test_thread_safe(self):
         """Test if the memory context is thread safe"""
@@ -38,12 +45,6 @@ class TestContext(TestCase):
         """Test if the memory context is accessible and safe in multi-processing"""
         import multiprocessing
 
-        def run(context):
-            context.set("a", 1)
-            context.set("b", 2)
-            context.set("c", 3)
-            context.set("d", X())
-
         context = Context()
         processes = []
         for _ in range(10):
@@ -63,11 +64,6 @@ class TestContext(TestCase):
         """Test it's possible to get all values from the context"""
         import multiprocessing
 
-        def run(context):
-            context.set("a", 1)
-            context.set("b", 2)
-            context.set("c", 3)
-
         context = Context()
         processes = []
         for _ in range(10):
@@ -78,4 +74,9 @@ class TestContext(TestCase):
         for p in processes:
             p.join()
 
-        self.assertEqual(context.get(None), {"a": 1, "b": 2, "c": 3})
+        retrieved_context = context.get(None)
+
+        self.assertEqual(retrieved_context["a"], 1)
+        self.assertEqual(retrieved_context["b"], 2)
+        self.assertEqual(retrieved_context["c"], 3)
+        self.assertTrue(isinstance(retrieved_context["d"], X))

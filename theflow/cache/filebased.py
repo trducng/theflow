@@ -1,4 +1,10 @@
+import logging
+
 from .base import BaseCache
+
+logger = logging.getLogger(__name__)
+
+_local_caches = {}
 
 
 class FileCache(BaseCache):
@@ -17,7 +23,11 @@ class FileCache(BaseCache):
                 "Please run: pip install diskcache"
             )
 
-        self._cache = diskcache.Cache(path)
+        path = str(path)
+        if path not in _local_caches:
+            _local_caches[path] = diskcache.Cache(path)
+
+        self._cache = _local_caches[path]
         self._lock = diskcache.RLock(self._cache, "__lock__")
 
     def add(self, key, value, timeout=None):
@@ -58,9 +68,6 @@ class FileCache(BaseCache):
 
     def __delitem__(self, key):
         del self._cache[key]
-
-    def __del__(self):
-        self.close()
 
     @property
     def lock(self):
