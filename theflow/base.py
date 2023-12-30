@@ -1156,7 +1156,7 @@ class Function(metaclass=MetaFunction):
 
         if name in self._ff_nodes:
             if not isinstance(value, Function):
-                value = self._make_composable(value)
+                value = self._convert_to_function(value)
         elif name not in self._ff_params and name not in self._protected_keywords():
             if self.config.allow_extra:
                 self._attrx["AllowExtraParam"][name] = value
@@ -1212,7 +1212,21 @@ class Function(metaclass=MetaFunction):
                 keywords[keyword] = each_cls
         return keywords
 
-    def _make_composable(self, value) -> Function:
+    def _convert_to_function(self, value) -> Function:
+        """Convert a vanilla object into a function.
+
+        If the value is None, return as it, as likely the user wants to disable the
+        node.
+
+        Args:
+            value: the object to be converted
+
+        Returns:
+            Function: the converted object (or as it)
+        """
+        if value is None:
+            return value  # type: ignore
+
         return ProxyFunction(ff_original_obj=value)
 
     def _prepare_child(self, child: _F, name: str) -> _F:
@@ -1270,7 +1284,7 @@ class Function(metaclass=MetaFunction):
         return self
 
     def set(self, kwargs: dict, strict: bool = False):
-        """Set the keyword arguments in the composable"""
+        """Set the keyword arguments in the function"""
         kwargs = unflatten_dict(kwargs)
         for name, value in kwargs.items():
             name = name.strip(".")
