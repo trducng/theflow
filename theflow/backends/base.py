@@ -1,4 +1,8 @@
 import threading
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..base import Function
 
 
 class Backend:
@@ -12,6 +16,7 @@ class Backend:
         self._ff_name: dict[int, str] = {}  # only root node has name as empty ""
         self._ff_run_id: dict[int, str] = {}  # the current run id
         self._ff_flow_name: dict[int, str] = {}  # the run name
+        self._func: "Function"
 
     @property
     def in_run(self) -> bool:
@@ -141,6 +146,9 @@ class Backend:
         self._ff_run_id.pop(ident, None)
         self._ff_flow_name.pop(ident, None)
 
-    def exec(self, func, *args, **kwargs):
+    def exec(self, run, args, kwargs):
         """Execute the pipeline's run"""
-        return func(*args, **kwargs)
+        return run(*args, **kwargs)
+
+    def attach(self, func: "Function"):
+        self._func = func

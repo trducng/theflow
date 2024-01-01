@@ -27,7 +27,6 @@ try:
 except ImportError:
     _generic_alias_types = (_GenericAlias,)
 
-from .backends.base import Backend
 from .config import Config, ConfigProperty, DefaultConfig
 from .context import Context
 from .debug import likely_cyclic_pipeline
@@ -977,7 +976,6 @@ class Function(metaclass=MetaFunction):
                 next_call = cls(obj=self, next_call=next_call)
             self._middleware = next_call
 
-        self.fl = Backend()  # TODO: select the right backend
         if not hasattr(self, "_ff_initializing"):
             # TODO: this work better if we formulate config and context as independent
             self._initialize()
@@ -1027,14 +1025,14 @@ class Function(metaclass=MetaFunction):
 
     def __call__(self, *args, **kwargs):
         """Run the flow, accepting extra parameters for routing purpose"""
+        if not hasattr(self, "_ff_initializing"):
+            self._initialize()
+
         # might not need to pop __fl_runstates__, because it can be used by other
         # operations of the Backend.
         _tfrs = kwargs.pop("__fl_runstates__", {})
         if _tfrs:
             self.fl.track(**_tfrs)
-
-        if not hasattr(self, "_ff_initializing"):
-            self._initialize()
 
         if _ff_run_kwargs := kwargs.pop("_ff_run_kwargs", {}):
             # TODO: another option is to communicate through context,
@@ -1075,6 +1073,10 @@ class Function(metaclass=MetaFunction):
 
         self.context.create_context(context=self.fl.qualidx, exist_ok=True)
 
+        # TODO: this will override kwargs passed in __call__. Should follow the
+        # context-based parameters sharing method
+        # TODO: this will raise errors in case the users pass in a lot of parameters
+        # and some of them don't appear in the .run method.
         if self.__ff_run_kwargs__:
             kwargs.update(self.__ff_run_kwargs__)
 
@@ -1083,7 +1085,7 @@ class Function(metaclass=MetaFunction):
 
         try:
             func = self._middleware if self._middleware else self._runx
-            output = self.fl.exec(func, *args, **kwargs)
+            output = self.fl.exec(func, args, kwargs)
 
             if not self.fl.prefix:  # only root node has prefix as empty
                 if self.config.params_publish:
@@ -1170,6 +1172,10 @@ class Function(metaclass=MetaFunction):
     def _initialize(self):
         if self._ff_context is None:
             self._ff_context = deserialize(settings.CONTEXT, safe=False)
+
+        # Initialize the backend
+        self.fl = deserialize(self.config.default_backend, safe=False)
+        self.fl.attach(self)
 
         if not hasattr(self, "_ff_init_called"):
             raise RuntimeError(
@@ -1395,9 +1401,10 @@ class Function(metaclass=MetaFunction):
                 logger.warn(e)
 
         return {
-            "__type__": f"{self.__module__}.{self.__class__.__qualname__}",
-            **params,
-            **nodes,
+            "function": f"{self.__module__}.{self.__class__.__qualname__}",
+            "nodes": nodes,
+            "params": params,
+            "configs": self.config.dump(),
         }
 
     def specs(self, path: str) -> dict:
@@ -1532,15 +1539,14 @@ class Function(metaclass=MetaFunction):
         run_tracker.log_progress(name, **kwargs)
 
     def __persist_flow__(self) -> dict:
-        """Represent the flow in a JSON-serializable dictionary, that can be
-        constructed
-        """
+        """Persist function into a re-constructable JSON-serializable dictionary"""
         export: dict = {
             "__type__": f"{self.__module__}.{self.__class__.__qualname__}",
         }
 
         for name, value in self.params.items():
-            if self.specs(name).get("depends_on", []):
+            # ignore auto parameter
+            if self.specs(name).get("auto_callback", []):
                 continue
             try:
                 export[name] = serialize(value)
@@ -1549,9 +1555,9 @@ class Function(metaclass=MetaFunction):
                 continue
 
         for name in self._ff_nodes:
-            if self.specs(name).get("depends_on", []):
+            if self.specs(name).get("auto_callback", []):
                 continue
-            node = getattr(self, name).__persist_flow__()
+            node = self.get_from_path(name).__persist_flow__()
             export[name] = node
 
         return export
@@ -1640,6 +1646,9 @@ class ProxyFunction(Function):
             callable_obj = next_call
 
         def wrapper(*args, **kwargs):
+            if not hasattr(self, "_ff_initializing"):
+                self._initialize()
+
             _tfrs = kwargs.pop("__fl_runstates__", {})
             if _tfrs:
                 self.fl.track(**_tfrs)

@@ -5,13 +5,16 @@ import yaml
 if TYPE_CHECKING:
     from .base import Function
 
+from .settings import settings
 from .utils.modules import import_dotted_string
 
+# configs that are dictionary that will be aggregated from parent to child
+# classes, rather than being overwritten
 _aggregated_dict = {"middleware_switches"}
 
 
 class DefaultConfig:
-    # don't store the result if None
+    # skip storing the result if set to None
     store_result = "{{ theflow.callbacks.store_result__pipeline_name }}"
     run_id = "{{ theflow.callbacks.run_id__timestamp }}"
     function_name = "{{ theflow.callbacks.function_name__class_name }}"
@@ -28,6 +31,9 @@ class DefaultConfig:
     params_publish = False
     params_subscribe = True
     allow_extra: bool = False
+
+    # declare default backend for deployment
+    default_backend = settings.BASE_BACKEND
 
 
 class ConfigGet:

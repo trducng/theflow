@@ -24,3 +24,8 @@ MIDDLEWARE = {
         "theflow.middleware.SkipComponentMiddleware",
     ]
 }
+
+
+BASE_BACKEND = {
+    "__type__": "theflow.backends.Backend",
+}

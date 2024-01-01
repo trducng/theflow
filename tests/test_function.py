@@ -1,8 +1,10 @@
+from copy import deepcopy
 from unittest import TestCase
 
 import pytest
 
 from theflow import Function, Node, Param, load
+from theflow.config import DefaultConfig
 from theflow.debug import likely_cyclic_pipeline
 from theflow.exceptions import CyclicPipelineError
 
@@ -13,76 +15,106 @@ class TestFunctionSaveAndLoad(TestCase):
     def test_save_ignore_auto_as_default(self):
         """By default, ignore_auto for the output"""
         obj = Func(a=20, e=20, x=Sum1(a=20))
-        d = obj.dump()
-        self.assertEqual(
-            d,
+        obj_def = obj.dump()
+
+        # config-related result
+        default_config = {
+            k: v for k, v in DefaultConfig.__dict__.items() if not k.startswith("_")
+        }
+        func_config = deepcopy(default_config)
+        func_config["middleware_switches"][
+            "theflow.middleware.CachingMiddleware"
+        ] = True
+
+        self.assertDictEqual(
+            obj_def,
             {
-                "__type__": "tests.assets.sample_flow.Func",
-                "a": 20,
-                "e": 20,
-                "m": {
-                    "__type__": "tests.assets.sample_flow.Sum2",
-                    "a": 100,
-                    "mult": {
-                        "__type__": "tests.assets.sample_flow.Multiply",
-                        "a": 10,
+                "function": "tests.assets.sample_flow.Func",
+                "params": {"a": 20, "e": 20},
+                "nodes": {
+                    "m": {
+                        "function": "tests.assets.sample_flow.Sum2",
+                        "params": {"a": 100},
+                        "nodes": {
+                            "mult": {
+                                "function": "tests.assets.sample_flow.Multiply",
+                                "params": {"a": 10},
+                                "nodes": {},
+                                "configs": default_config,
+                            },
+                        },
+                        "configs": default_config,
+                    },
+                    "x": {
+                        "function": "tests.assets.sample_flow.Sum1",
+                        "params": {"a": 20, "b": 10, "c": 10},
+                        "nodes": {},
+                        "configs": default_config,
+                    },
+                    "y": {
+                        "function": "tests.assets.sample_flow.Sum1",
+                        "params": {"a": 100, "b": 10, "c": 10},
+                        "nodes": {},
+                        "configs": default_config,
                     },
                 },
-                "x": {
-                    "__type__": "tests.assets.sample_flow.Sum1",
-                    "a": 20,
-                    "b": 10,
-                    "c": 10,
-                },
-                "y": {
-                    "__type__": "tests.assets.sample_flow.Sum1",
-                    "a": 100,
-                    "b": 10,
-                    "c": 10,
-                },
+                "configs": func_config,
             },
         )
 
     def test_save_no_ignore_auto(self):
         """Include params and nodes with ignore_auto"""
         obj = Func(a=20, e=20, x=Sum1(a=20))
-        d = obj.dump(ignore_auto=False)
-        self.assertEqual(
-            d,
+        obj_def = obj.dump(ignore_auto=False)
+
+        # config-related result
+        default_config = {
+            k: v for k, v in DefaultConfig.__dict__.items() if not k.startswith("_")
+        }
+        func_config = deepcopy(default_config)
+        func_config["middleware_switches"][
+            "theflow.middleware.CachingMiddleware"
+        ] = True
+
+        self.assertDictEqual(
+            obj_def,
             {
-                "__type__": "tests.assets.sample_flow.Func",
-                "a": 20,
-                "e": 20,
-                "f": 40,
-                "m": {
-                    "__type__": "tests.assets.sample_flow.Sum2",
-                    "a": 100,
-                    "mult": {
-                        "__type__": "tests.assets.sample_flow.Multiply",
-                        "a": 10,
+                "function": "tests.assets.sample_flow.Func",
+                "params": {"a": 20, "e": 20, "f": 40},
+                "nodes": {
+                    "m": {
+                        "function": "tests.assets.sample_flow.Sum2",
+                        "params": {"a": 100},
+                        "nodes": {
+                            "mult": {
+                                "function": "tests.assets.sample_flow.Multiply",
+                                "params": {"a": 10},
+                                "nodes": {},
+                                "configs": default_config,
+                            },
+                        },
+                        "configs": default_config,
+                    },
+                    "x": {
+                        "function": "tests.assets.sample_flow.Sum1",
+                        "params": {"a": 20, "b": 10, "c": 10, "d": 20},
+                        "nodes": {},
+                        "configs": default_config,
+                    },
+                    "y": {
+                        "function": "tests.assets.sample_flow.Sum1",
+                        "params": {"a": 100, "b": 10, "c": 10, "d": 20},
+                        "nodes": {},
+                        "configs": default_config,
+                    },
+                    "z": {
+                        "function": "tests.assets.sample_flow.Sum1",
+                        "params": {"a": 200, "b": 10, "c": 10, "d": 20},
+                        "nodes": {},
+                        "configs": default_config,
                     },
                 },
-                "x": {
-                    "__type__": "tests.assets.sample_flow.Sum1",
-                    "a": 20,
-                    "b": 10,
-                    "c": 10,
-                    "d": 20,
-                },
-                "y": {
-                    "__type__": "tests.assets.sample_flow.Sum1",
-                    "a": 100,
-                    "b": 10,
-                    "c": 10,
-                    "d": 20,
-                },
-                "z": {
-                    "__type__": "tests.assets.sample_flow.Sum1",
-                    "a": 200,
-                    "b": 10,
-                    "c": 10,
-                    "d": 20,
-                },
+                "configs": func_config,
             },
         )
 
@@ -133,7 +165,6 @@ class TestFunctionSaveAndLoad(TestCase):
                 "__type__": "tests.assets.sample_flow.Func",
                 "a": 20,
                 "e": 20,
-                "f": 40,
                 "m": {
                     "__type__": "tests.assets.sample_flow.Sum2",
                     "a": 100,

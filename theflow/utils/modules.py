@@ -44,7 +44,6 @@ def import_dotted_string(
     ):
         module = importlib.import_module(module_name)
 
-    module = importlib.import_module(module_name)
     return getattr(module, obj_name)
 
 
@@ -60,6 +59,41 @@ def serialize_path(path: Path) -> dict:
 SERIALIZE_BY_TYPES = {
     Path: serialize_path,
 }
+
+
+def import_modules(*module_names: str) -> tuple:
+    """Import a module by string name, raise exception if not found
+
+    Args:
+        module_name: the module name to import
+
+    Returns:
+        the imported module
+
+    Raises:
+        ImportError: if any of the module cannot be imported
+    """
+    errors: list[str] = []
+    modules = []
+    for module_name in module_names:
+        try:
+            module = sys.modules.get(module_name)
+
+            if not (
+                module
+                and (spec := getattr(module, "__spec__", None))
+                and getattr(spec, "_initializing", False) is False
+            ):
+                module = importlib.import_module(module_name)
+            modules.append(module)
+        except ImportError as e:
+            errors.append(module_name)
+            logger.warn(f"Cannot import module {module_name}: {e}")
+
+    if errors:
+        raise ImportError(f"Cannot import modules: {', '.join(errors)}")
+
+    return tuple(modules)
 
 
 def serialize(value: Any) -> Any:

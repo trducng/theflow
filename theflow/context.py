@@ -27,8 +27,10 @@ class Context:
 
         self._cache = deserialize(settings.CACHE, safe=False)
         self._global_key = "__global_key__"
-        self._cache.set("__global_key__", {})
-        self._cache.set("__all_contexts__", [])
+        if self._global_key not in self._cache:
+            self._cache.set(self._global_key, {})
+        if "__all_contexts__" not in self._cache:
+            self._cache.set("__all_contexts__", [])
 
     def _is_context_valid(self, context: Optional[str]) -> str:
         """Check if the context name is valid
