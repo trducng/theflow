@@ -126,6 +126,8 @@ class TrackProgressMiddleware(Middleware):
     """
 
     def __call__(self, *args, **kwargs):
+        import inspect
+
         abs_pathx = self.obj.fl.abs_path
         if abs_pathx == ".":
             from .runs.base import RunTracker
@@ -140,7 +142,19 @@ class TrackProgressMiddleware(Middleware):
         except Exception as e:
             self.obj.log_progress(abs_pathx, input=_input, output=None, error=str(e))
             raise e from None
-        self.obj.log_progress(abs_pathx, input=_input, output=_output)
+
+        if not (
+            inspect.isgenerator(_output)
+            or inspect.isasyncgen(_output)
+            or inspect.iscoroutine(_output)
+            or inspect.isawaitable(_output)
+        ):
+            try:
+                self.obj.log_progress(abs_pathx, input=_input, output=_output)
+            except Exception as e:
+                import traceback
+
+                logger.warning(f"Failed to log progress: {e}: {traceback.format_exc()}")
 
         if abs_pathx == ".":
             # will be set by the previous code
