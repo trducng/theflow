@@ -7,4 +7,4 @@ CACHE = {
     "__type__": "theflow.cache.FileCache",
     "path": str(Path(tempfile.mkdtemp(prefix="theflow_"), "cache")),
 }
-SETTING2 = "value2"
+SETTING3 = "value3"
