@@ -17,7 +17,7 @@ classifiers = [
 dependencies = ["pyyaml", "diskcache", "typing_extensions"]
 
 [project.optional-dependencies]
-dev = ["coverage", "pytest", "pytest-cov", "black", "flake8", "mypy", "isort", "pre-commit", "notebook", "ipython", "build", "twine", "papermill"]
+dev = ["coverage", "pytest", "pytest-cov", "black", "flake8", "mypy", "isort", "pre-commit", "notebook", "ipython", "build", "twine", "papermill", "pymemcache"]
 
 [project.urls]
 Homepage = "https://github.com/trducng/theflow"
