@@ -1,5 +1,5 @@
 import abc
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 if TYPE_CHECKING:
     from threading import Lock
@@ -154,5 +154,19 @@ class BaseCache(abc.ABC):
 
         Returns:
             A lock object
+        """
+        ...
+
+    @abc.abstractmethod
+    def get_then_set(self, key: str, func: Callable[[Any], Any], default: Any = None):
+        """Get a value from the cache, and then set the value, avoiding race conditions
+
+        Args:
+            key: the name of the key to get
+            func: a function to call to get the updated value
+            default: the value to return if the key doesn't exist
+
+        Returns:
+            The value of the key, updated to cache
         """
         ...

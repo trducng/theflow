@@ -83,3 +83,10 @@ class FileCache(BaseCache):
 
         self.__dict__.update(state)
         self._lock = diskcache.RLock(self._cache, "__lock__")
+
+    def get_then_set(self, key, func, default=None):
+        with self._lock:
+            value = self._cache.get(key, default)
+            value = func(value)
+            self._cache.set(key, value)
+        return value
