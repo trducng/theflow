@@ -147,16 +147,6 @@ class BaseCache(abc.ABC):
         """
         ...
 
-    @property
-    @abc.abstractmethod
-    def lock(self) -> "Lock":
-        """Acquire a lock for long-running operations
-
-        Returns:
-            A lock object
-        """
-        ...
-
     @abc.abstractmethod
     def get_then_set(self, key: str, func: Callable[[Any], Any], default: Any = None):
         """Get a value from the cache, and then set the value, avoiding race conditions

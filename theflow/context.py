@@ -141,9 +141,8 @@ class Context:
             x.append(context)
             return x
 
-        with self._cache.lock:
-            self._cache.set(context, {})
-            self._cache.get_then_set("__all_contexts__", func=func, default=[])
+        self._cache.set(context, {})
+        self._cache.get_then_set("__all_contexts__", func=func, default=[])
 
         return context
 

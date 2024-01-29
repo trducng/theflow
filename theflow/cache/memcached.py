@@ -1,3 +1,4 @@
+import threading
 from typing import Any, Callable, Optional
 
 from .base import BaseCache
@@ -14,9 +15,22 @@ class PyMemcacheCache(BaseCache):
                 "Please run: pip install pymemcache"
             )
 
-        self._cache = pymemcache.Client(
-            servers, serde=pymemcache.serde.pickle_serde, **kwargs
-        )
+        self._servers = servers
+        self._kwargs = kwargs
+        self._caches = {}
+
+    @property
+    def _cache(self):
+        import pymemcache
+        import pymemcache.serde
+
+        ident = threading.get_ident()
+        if ident not in self._caches:
+            self._caches[ident] = pymemcache.Client(
+                self._servers, serde=pymemcache.serde.pickle_serde, **self._kwargs
+            )
+
+        return self._caches[ident]
 
     def add(self, key: str, value: Any, timeout: Optional[int] = None) -> None:
         self._cache.add(key, value, expire=timeout or 0)
@@ -65,3 +79,12 @@ class PyMemcacheCache(BaseCache):
                 return value
 
         raise RuntimeError("Key changes very frequently, please try again later")
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state["_caches"]
+        return state
+
+    def __setstate__(self, state):
+        state["_caches"] = {}
+        self.__dict__.update(state)
