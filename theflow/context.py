@@ -63,12 +63,12 @@ class Context:
             context: name of the context, if None (default), use the global context
         """
 
-        context = self._is_context_valid(context)
+        def func(x):
+            x[name] = value
+            return x
 
-        with self._cache.lock:
-            current = self._cache.get(context, {})
-            current[name] = value
-            self._cache.set(context, current)
+        context = self._is_context_valid(context)
+        self._cache.get_then_set(context, func=func, default={})
 
     def get(
         self, name: Optional[str], default=None, context: Optional[str] = None
@@ -95,10 +95,13 @@ class Context:
         """
         context = self._is_context_valid(context)
         if name is not None:
-            with self._cache.lock:
-                current = self._cache[context]
-                del current[name]
-                self._cache.set(context, current)
+
+            def func(x):
+                if name in x:
+                    del x[name]
+                return x
+
+            self._cache.get_then_set(context, func=func, default={})
         else:
             self._cache.set(context, {})
 
@@ -134,11 +137,12 @@ class Context:
                 return context
             raise ValueError(f"Context {context} already exists")
 
-        with self._cache.lock:
-            self._cache.set(context, {})
-            all_contexts = self._cache.get("__all_contexts", [])
-            all_contexts.append(context)
-            self._cache.set("__all_contexts", all_contexts)
+        def func(x):
+            x.append(context)
+            return x
+
+        self._cache.set(context, {})
+        self._cache.get_then_set("__all_contexts__", func=func, default=[])
 
         return context
 
