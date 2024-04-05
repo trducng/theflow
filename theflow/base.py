@@ -213,6 +213,7 @@ class Attr(Generic[_Attr]):
         )
 
         # validate after receiving the name and type for actionable error message
+        self._type = str(owner.__annotations__.get(name, Any))
         self._validate_args()
 
     def __persist_flow__(self):
@@ -374,6 +375,7 @@ class Attr(Generic[_Attr]):
             "help": self._help,
             "depends_on": self._depends_on,
             "cache": self._cache,
+            "type": self._type,
             **self._extras,
         }
 
@@ -1359,6 +1361,7 @@ class Function(metaclass=MetaFunction):
                 nodes[attr] = value
             elif isinstance(attr_value, ParamAttr):
                 params[attr] = attr_value.__persist_flow__()
+                # params["__type__"] = ""
 
         return {
             "type": f"{cls.__module__}.{cls.__qualname__}",
