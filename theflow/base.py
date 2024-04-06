@@ -1358,7 +1358,11 @@ class Function(metaclass=MetaFunction):
                     }
                 nodes[attr] = value
             elif isinstance(attr_value, ParamAttr):
-                params[attr] = attr_value.__persist_flow__()
+                attr_val = attr_value.__persist_flow__()
+                attr_val["type"] = repr(
+                    attr_value._owner.__annotations__.get(attr_value._name, Any)
+                )
+                params[attr] = attr_val
 
         return {
             "type": f"{cls.__module__}.{cls.__qualname__}",
