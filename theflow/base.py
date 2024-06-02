@@ -17,6 +17,7 @@ from typing import (
     get_type_hints,
     overload,
 )
+from warnings import warn
 
 from typing_extensions import dataclass_transform
 
@@ -1434,12 +1435,12 @@ class Function(metaclass=MetaFunction):
 
     def getx(self, path: str) -> Any:
         """Get the Function node or param based on path"""
-        path = path.strip(".")
-        if "." in path:
-            module, subpath = path.split(".", 1)
-            return getattr(self, module).getx(subpath)
-
-        return getattr(self, path)
+        warn(
+            "Function.getx(path) is deprecated, please use Function[path]",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self[path]
 
     def missing(self) -> dict[str, list[str]]:
         """Return the list of missing params and nodes"""
@@ -1476,6 +1477,22 @@ class Function(metaclass=MetaFunction):
         Returns:
             Node or param, depending on the path
         """
+        warn(
+            "Function.get_from_path(path) is deprecated, please use Function[path]",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self[path]
+
+    def __getitem__(self, path):
+        """Get a node or param by path, with tracking disabled
+
+        Args:
+            path: the path to the node or param (.) delimited
+
+        Returns:
+            Node or param, depending on the path
+        """
         self._track_child = False
         path = path.strip(".")
 
@@ -1483,7 +1500,7 @@ class Function(metaclass=MetaFunction):
             module, subpath = path.split(".", 1)
             obj = getattr(self, module)
             self._track_child = True
-            return obj.get_from_path(subpath)
+            return obj[subpath]
 
         obj = getattr(self, path)
         self._track_child = True
