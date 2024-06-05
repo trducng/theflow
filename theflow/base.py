@@ -1095,8 +1095,19 @@ class Function(metaclass=MetaFunction):
                         context=f"{self.fl.flow_qualidx}|published_params",
                     )
         except Exception as e:
+            self._variablex()
+            self.fl.clear()
             raise e from None
-        finally:
+
+        if inspect.isgenerator(output):
+            # delay clean up for lazy evaluation
+            def cleanup(wrapped):
+                yield from wrapped
+                self._variablex()
+                self.fl.clear()
+
+            output = cleanup(output)
+        else:
             self._variablex()
             self.fl.clear()
 

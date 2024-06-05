@@ -67,7 +67,6 @@ class SkipComponentMiddleware(Middleware):
             from_run = RunTracker(self.obj, "__from_run__")
             from_run.load(run_path=_ff_from_run)
 
-        self.obj.context.get("from", context=self.obj.fl.flow_qualidx)
         if _from := self.obj.context.get("from", context=self.obj.fl.flow_qualidx):
             from .utils.paths import is_parent_of_child
 
@@ -137,30 +136,52 @@ class TrackProgressMiddleware(Middleware):
             self.obj.last_run = last_run
 
         _input = {"args": args, "kwargs": kwargs}
+        _output: dict = {"type": None, "value": None}
+
         try:
-            _output = self.next_call(*args, **kwargs)
+            output = self.next_call(*args, **kwargs)
         except Exception as e:
-            self.obj.log_progress(abs_pathx, input=_input, output=None, error=str(e))
+            self.obj.log_progress(abs_pathx, input=_input, output=_output, error=str(e))
             raise e from None
 
-        if not (
-            inspect.isgenerator(_output)
-            or inspect.isasyncgen(_output)
-            or inspect.iscoroutine(_output)
-            or inspect.isawaitable(_output)
-        ):
-            try:
-                self.obj.log_progress(abs_pathx, input=_input, output=_output)
-            except Exception as e:
-                import traceback
+        if inspect.isgenerator(output):
 
-                logger.warning(f"Failed to log progress: {e}: {traceback.format_exc()}")
+            def gen(wrapped_gen):
+                logged_items = []
+                for item in wrapped_gen:
+                    logged_items.append(item)
+                    yield item
+                _output["type"] = type(output).__name__
+                _output["value"] = logged_items
+                self.obj.log_progress(abs_pathx, input=_input, output=_output)
+
+                if abs_pathx == ".":
+                    # will be set by the previous code
+                    last_run.persist()  # type: ignore
+
+            output = gen(output)
+        elif (
+            inspect.isasyncgen(output)
+            or inspect.iscoroutine(output)
+            or inspect.isawaitable(output)
+        ):
+            _output["type"] = type(output).__name__
+        else:
+            _output["type"] = type(output).__name__
+            _output["value"] = output
+
+        try:
+            self.obj.log_progress(abs_pathx, input=_input, output=_output)
+        except Exception as e:
+            import traceback
+
+            logger.warning(f"Failed to log progress: {e}: {traceback.format_exc()}")
 
         if abs_pathx == ".":
             # will be set by the previous code
             last_run.persist()  # type: ignore
 
-        return _output
+        return output
 
 
 class CachingMiddleware(Middleware):
